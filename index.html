@@ -1,0 +1,54 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><script>try{if(localStorage.getItem("wf_theme")==="dark")document.documentElement.setAttribute("data-theme","dark")}catch(e){}</script><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#001b4d"><link rel="manifest" href="manifest.json?v=11.66"><link rel="icon" type="image/png" sizes="192x192" href="icon-192-v11-47.png"><link rel="apple-touch-icon" href="icon-192-v11-47.png"><title>الورشة الفنية | النظام المصغر</title><link rel="stylesheet" href="style.css"><script src="theme.js" defer></script></head><body>
+<header><div class="brand"><img class="brand-logo" src="icon-192-v11-47.png" alt="شعار الورشة الفنية"><div><h1>الورشة الفنية</h1><p>نظام إدارة الورشة المصغر</p></div></div><div style="display:flex;align-items:center;gap:8px"><button class="theme-toggle-btn no-print" type="button" onclick="toggleTheme()" aria-label="تبديل المظهر" title="الوضع الداكن">🌙</button><button id="installAppBtn" class="secondary hidden" type="button" onclick="installWorkshopApp()">📲 تثبيت التطبيق</button></div></header>
+<p class="home-greeting" id="homeGreeting"></p>
+<div id="backupReminder" class="home-backup-reminder-host"></div>
+<main>
+<section class="dashboard"><div class="dash-head"><h2>📊 ملخص الورشة</h2><span class="hint">اضغط أي رقم للدخول مباشرة لتفاصيله</span></div><div id="dashboard"></div></section>
+<section class="panel" id="quickOrderPanel"><button type="button" id="quickOrderToggleBtn" class="quick-order-toggle" onclick="toggleQuickOrderPanel()">⚡ أمر شغل سريع (دوس للفتح)</button>
+<div id="quickOrderBody" class="hidden">
+<p class="hint">اختر العميل والجهاز واكتب العطل، والباقي (الأولوية، الموعد، الحساب، قطع الغيار) تظبطه بعدين من صفحة الأمر نفسها. العميل أو الجهاز جديد؟ سجّله من هنا على طول من غير ما تسيب الصفحة.</p>
+<div class="form-grid">
+<label class="wide">العميل<div class="select-add"><div class="part-autocomplete"><input type="text" id="qoCustomerSearch" class="part-autocomplete-input" placeholder="🔍 اكتب اسم العميل أو رقم التليفون..." autocomplete="off" oninput="filterCustomerOptions('qoCustomer', this.value)" onfocus="filterCustomerOptions('qoCustomer', this.value)" onblur="hideCustomerResults('qoCustomer')"><input type="hidden" id="qoCustomer"><div id="qoCustomerResults" class="part-autocomplete-results hidden"></div></div><button type="button" class="secondary mini-action quick-add-btn" data-opens="qoCustomerBox" onclick="toggleQuickAdd('qoCustomerBox')">➕ عميل</button></div></label>
+<section id="qoCustomerBox" class="quick-add hidden wide"><h3>➕ إضافة عميل سريع</h3><div class="form-grid"><label>اسم العميل<input id="qoName"></label><label>التليفون<input id="qoPhone" inputmode="tel"></label><label>المركز<div class="part-autocomplete"><input type="text" id="qoCenterSearch" class="part-autocomplete-input" placeholder="🔍 اكتب اسم المركز..." autocomplete="off" oninput="filterListOptions('qoCenter', this.value)" onfocus="filterListOptions('qoCenter', this.value)" onblur="hideListResults('qoCenter')"><input type="hidden" id="qoCenter"><div id="qoCenterResults" class="part-autocomplete-results hidden"></div></div></label><label>القرية<div class="part-autocomplete"><input type="text" id="qoVillageSearch" class="part-autocomplete-input" placeholder="🔍 اكتب اسم القرية..." autocomplete="off" oninput="filterListOptions('qoVillage', this.value)" onfocus="filterListOptions('qoVillage', this.value)" onblur="hideListResults('qoVillage')"><input type="hidden" id="qoVillage"><div id="qoVillageResults" class="part-autocomplete-results hidden"></div></div></label><label>الشارع / علامة مميزة <small>اختياري</small><input id="qoStreet"></label></div><div class="actions"><button type="button" class="primary" onclick="saveQuickCustomerHome()">💾 حفظ العميل واختياره</button><button type="button" class="secondary" onclick="closeQuickAdd('qoCustomerBox')">إلغاء</button></div></section>
+<label class="wide">الجهاز<div class="select-add"><select id="qoDevice"></select><button type="button" class="secondary mini-action quick-add-btn" data-opens="qoDeviceBox" onclick="toggleQuickAdd('qoDeviceBox')">➕ جهاز</button></div></label>
+<section id="qoDeviceBox" class="quick-add hidden wide"><h3>➕ إضافة جهاز سريع</h3><div class="form-grid"><label>نوع الجهاز<div class="part-autocomplete"><input type="text" id="qoTypeSearch" class="part-autocomplete-input" placeholder="🔍 اكتب نوع الجهاز..." autocomplete="off" oninput="filterListOptions('qoType', this.value)" onfocus="filterListOptions('qoType', this.value)" onblur="hideListResults('qoType')"><input type="hidden" id="qoType"><div id="qoTypeResults" class="part-autocomplete-results hidden"></div></div></label><label>التصنيف<div class="part-autocomplete"><input type="text" id="qoCategorySearch" class="part-autocomplete-input" placeholder="🔍 اكتب التصنيف..." autocomplete="off" oninput="filterListOptions('qoCategory', this.value)" onfocus="filterListOptions('qoCategory', this.value)" onblur="hideListResults('qoCategory')"><input type="hidden" id="qoCategory"><div id="qoCategoryResults" class="part-autocomplete-results hidden"></div></div></label><label>الماركة<div class="part-autocomplete"><input type="text" id="qoBrandSearch" class="part-autocomplete-input" placeholder="🔍 اكتب اسم الماركة..." autocomplete="off" oninput="filterListOptions('qoBrand', this.value)" onfocus="filterListOptions('qoBrand', this.value)" onblur="hideListResults('qoBrand')"><input type="hidden" id="qoBrand"><div id="qoBrandResults" class="part-autocomplete-results hidden"></div></div></label><label>الموديل <small>اختياري</small><input id="qoModel"></label></div><div class="actions"><button type="button" class="primary" onclick="saveQuickDeviceHome()">💾 حفظ الجهاز واختياره</button><button type="button" class="secondary" onclick="closeQuickAdd('qoDeviceBox')">إلغاء</button></div></section>
+<label class="wide">وصف العطل<textarea id="qoFault" placeholder="مثال: تاخر برنامج الغسالة"></textarea></label>
+</div>
+<div class="actions"><button type="button" class="primary" onclick="quickCreateRequest()">⚡ إنشاء أمر الشغل وفتحه</button><a class="secondary" href="requests.html?add=1">🛠️ فورم كامل</a></div>
+</div>
+</section>
+<section class="panel" id="quickWalletPanel"><button type="button" id="quickWalletToggleBtn" class="quick-order-toggle" onclick="toggleQuickWalletPanel()">💳 حركة محفظة سريعة (دوس للفتح)</button>
+<div id="quickWalletBody" class="hidden">
+<p class="hint">لتسجيل مصروف شخصي أو تشغيل أو أي حركة على محفظة بسرعة من غير ما تفتح صفحة الحسابات كاملة.</p>
+<div class="form-grid">
+<label>المبلغ<input id="qwAmount" type="number" step="0.01" min="0" placeholder="0.00"></label>
+<label>المحفظة<select id="qwWallet"></select></label>
+<label>التصنيف<select id="qwCategory"></select></label>
+<label class="wide">السبب<input id="qwReason" placeholder="مثال: بنزين، سحب شخصي..."></label>
+</div>
+<div class="actions"><button type="button" class="primary" onclick="quickAddWalletTx('in')">➕ وارد</button><button type="button" class="secondary danger-btn" onclick="quickAddWalletTx('out')">➖ صرف</button></div>
+</div>
+</section>
+<div class="grid">
+<div class="nav-section-title">⚡ التشغيل اليومي</div>
+<a class="card card-accent-orange" href="requests.html"><i>🛠️</i><div class="card-text"><b>أوامر الشغل</b><span>التشغيل والحساب وقطع الغيار والتحصيل والإغلاق</span></div></a>
+<a class="card card-accent-cyan" href="route.html"><i>🗺️</i><div class="card-text"><b>خط سير اليوم</b><span>مواعيد اليوم والمتأخرة مجمّعة حسب المركز</span></div></a>
+<a class="card card-accent-red" href="followup.html"><i>⏳</i><div class="card-text"><b>متابعة العملاء</b><span>العملاء الساكتين اللي محتاجين تواصل</span></div></a>
+<a class="card card-accent-teal" href="tasks.html"><i>✅</i><div class="card-text"><b>المهام</b><span>متابعة المهام اليومية والمواعيد</span></div></a>
+<div class="nav-section-title">🗂️ قاعدة البيانات</div>
+<a class="card card-accent-blue" href="customers.html"><i>👤</i><div class="card-text"><b>العملاء</b><span>ملفات 360° والعناوين والأجهزة وأوامر الشغل</span></div></a>
+<a class="card card-accent-teal" href="devices.html"><i>🔧</i><div class="card-text"><b>الأجهزة</b><span>الأنواع والتصنيفات والماركات وملفات الأجهزة</span></div></a>
+<a class="card card-accent-green" href="inventory.html"><i>📦</i><div class="card-text"><b>المخزن</b><span>القطع والمواقع والحركات والتكلفة والمكسب</span></div></a>
+<div class="nav-section-title">📚 مرجع فني (مستقل)</div>
+<a class="card card-accent-purple" href="faultcodes.html"><i>🧯</i><div class="card-text"><b>أكواد أعطال الأجهزة</b><span>مرجع أكواد الأعطال لكل نوع وماركة — قابل للمشاركة مع فنيين تانيين</span></div></a>
+<div class="nav-section-title">💰 الأموال</div>
+<a class="card card-accent-gold" href="treasury.html"><i>💵</i><div class="card-text"><b>الخزنة</b><span>درج نقدي مستقل وحركات الوارد والصرف وكشف الخزنة</span></div></a>
+<a class="card card-accent-teal" href="wallets.html"><i>💳</i><div class="card-text"><b>الحسابات</b><span>محفظتي، فودافون كاش، أورنج كاش، إنستاباي — مربوطة بأوامر الشغل</span></div></a>
+<div class="nav-section-title">⚙️ الإدارة</div>
+<a class="card card-accent-purple" href="reports.html"><i>📊</i><div class="card-text"><b>التقارير والتحليلات</b><span>تشغيل ومالية وعملاء وأجهزة ومخزن وورشة وخزنة ومهام</span></div></a>
+<a class="card card-accent-purple" href="settings.html"><i>⚙️</i><div class="card-text"><b>إعدادات النظام</b><span>المراكز والقرى وأنواع الأجهزة والماركات وتصنيفات المخزن</span></div></a>
+</div>
+</main><script src="notif-shared.js"></script>
+  <script src="shared-data.js"></script><script src="global-search.js"></script><script src="bottom-nav.js"></script><script src="image-store.js"></script><script src="migrations.js"></script><script src="treasury.js"></script><script src="wallets.js"></script><script src="tasks.js"></script><script src="app-shared.js"></script><script src="app-dashboard-reports.js"></script><script src="app-customers.js"></script><script src="app-devices.js"></script><script src="app-requests.js"></script><script src="app-settings-lists.js"></script><script src="app-parts.js"></script><script src="app-fault-codes.js"></script><script src="app-settings.js"></script><script src="app-delete-tools.js"></script><script src="app-route-followup.js"></script><script src="app-data-management.js"></script><script src="backup-reminder.js"></script><script src="app-customer-autocomplete.js"></script><script src="app-list-autocomplete.js"></script><script src="app-quick-add.js"></script><script src="app-notifications-bootstrap.js"></script>
+<script>(function(){var el=document.getElementById("homeGreeting");if(!el)return;var h=new Date().getHours();var greet=h<12?"☀️ صباح الخير":(h<17?"🌤️ مساء الخير":"🌙 مساء الخير");var d=new Date().toLocaleDateString("ar-EG",{weekday:"long",day:"numeric",month:"long"});el.textContent=greet+" — "+d;})();</script>
+</body></html>
