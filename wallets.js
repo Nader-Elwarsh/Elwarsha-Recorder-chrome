@@ -195,14 +195,17 @@ function transferBetweenWalletAndTreasury(direction,walletName,amount,date,time,
   let transferId=id();
   let baseReason=(reason||"").trim()||(direction==="toTreasury"?`🔁 تحويل من ${walletName} إلى الخزنة`:`🔁 تحويل من الخزنة إلى ${walletName}`);
   let noteVal=(note||"").trim();
-  if(direction==="toTreasury"){
-    put(K.wtx,arr(K.wtx).concat({id:id(),refKey:null,manualOverride:true,deleted:false,type:"out",amount,wallet:walletName,category:"سلفة / تحويل",date,time,reason:baseReason,note:noteVal,source:"transfer",transferId,createdAt:new Date().toISOString()}));
-    put(K.tr,arr(K.tr).concat({id:id(),refKey:null,manualOverride:true,deleted:false,type:"in",amount,date,time,reason:baseReason,counterparty:walletName,place:"",category:"تحويل",note:noteVal,source:"transfer",transferId,createdAt:new Date().toISOString()}));
-  }else{
-    put(K.tr,arr(K.tr).concat({id:id(),refKey:null,manualOverride:true,deleted:false,type:"out",amount,date,time,reason:baseReason,counterparty:walletName,place:"",category:"تحويل",note:noteVal,source:"transfer",transferId,createdAt:new Date().toISOString()}));
-    put(K.wtx,arr(K.wtx).concat({id:id(),refKey:null,manualOverride:true,deleted:false,type:"in",amount,wallet:walletName,category:"سلفة / تحويل",date,time,reason:baseReason,note:noteVal,source:"transfer",transferId,createdAt:new Date().toISOString()}));
-  }
+  const now=new Date().toISOString();
+  const walletTx={id:id(),refKey:null,manualOverride:true,deleted:false,type:direction==="toTreasury"?"out":"in",amount,wallet:walletName,category:"سلفة / تحويل",date,time,reason:baseReason,note:noteVal,source:"transfer",transferId,createdAt:now};
+  const treasuryTx={id:id(),refKey:null,manualOverride:true,deleted:false,type:direction==="toTreasury"?"in":"out",amount,date,time,reason:baseReason,counterparty:walletName,place:"",category:"تحويل",note:noteVal,source:"transfer",transferId,createdAt:now};
+  const result=withRollback([K.wtx,K.tr],()=>{
+    if(!put(K.wtx,arr(K.wtx).concat(walletTx)))return{ok:false};
+    if(!put(K.tr,arr(K.tr).concat(treasuryTx)))return{ok:false};
+    return{ok:true};
+  });
+  if(!result?.ok)return alert("تعذر حفظ التحويل كاملًا؛ لم يتم تسجيل أي من طرفيه.");
   renderWallets();renderTreasury();renderWalletDetail();
+  return result;
 }
 function toggleWalletTransferPanel(){
   let body=document.getElementById("walletTransferBody"),btn=document.getElementById("walletTransferToggleBtn");

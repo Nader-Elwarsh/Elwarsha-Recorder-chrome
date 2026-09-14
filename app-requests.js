@@ -47,26 +47,17 @@ function persistRequestRecord(formData,existing){
   let partsCost=partsStockCost(formData.parts);
   return withRollback([K.p,K.m],()=>{
     if(existing){
-      let oldParts=existing.parts||[];
-      if(!adjustStockForOrder(oldParts,formData.parts,existing.id)){
+      // الأمر الملغي لا تكون قطعه محجوزة من المخزن؛ نحسب فرق المخزون
+      // بين الحالة السابقة والجديدة مرة واحدة فقط، حتى لا تتكرر الإعادة
+      // أو الخصم عند تعديل أمر ملغي أو إعادة فتحه.
+      let oldParts=existing.status==="ملغي"?[]:(existing.parts||[]);
+      let newParts=formData.status==="ملغي"?[]:formData.parts;
+      if(!adjustStockForOrder(oldParts,newParts,existing.id)){
         return{ok:false,error:"الكمية الجديدة غير متاحة في المخزن."}
       }
       let fromStatus=existing.status;
       if(fromStatus!==formData.status&&!canTransitionStatus(fromStatus,formData.status)){
         return{ok:false,error:`لا يمكن الانتقال من حالة «${fromStatus}» إلى «${formData.status}» مباشرة.`}
-      }
-      // إلغاء الأمر معناه إن الشغل ماتمش فعليًا، فقطعه المستخدمة لازم ترجع
-      // للمخزن (زي بالظبط ما بيحصل لو الأمر اتحذف نهائيًا). إعادة فتح أمر
-      // ملغي بترجع تخصم نفس القطع تاني لو لسه متاحة بنفس الكمية، وإلا
-      // يترفض إعادة الفتح برسالة واضحة بدل ما يفتح بمخزون غير متسق.
-      if(fromStatus!==formData.status){
-        if(formData.status==="ملغي"){
-          adjustStockForOrder(formData.parts,[],existing.id);
-        } else if(fromStatus==="ملغي"&&formData.status==="جديد"){
-          if(!adjustStockForOrder([],formData.parts,existing.id)){
-            return{ok:false,error:"تعذر إعادة فتح الأمر: قطع الغيار المستخدمة فيه لم تعد متاحة بنفس الكمية في المخزن."}
-          }
-        }
       }
       Object.assign(existing,{customerId:formData.customerId,deviceId:formData.deviceId,addressKey:formData.addressKey,visit:formData.visit,status:formData.status,executionPlace:formData.executionPlace,workshopStatus:formData.workshopStatus,partsWaiting:formData.partsWaiting,tag:formData.tag,fault:formData.fault,work:formData.work,labor:formData.labor,parts:formData.parts,partsTotal:formData.partsTotal,partsCost,total:formData.total,deposit:formData.deposit,depositWallet:formData.depositWallet,remain:Math.max(0,formData.total-formData.deposit)});
       applyStatusTimestamp(existing,existing.status);
