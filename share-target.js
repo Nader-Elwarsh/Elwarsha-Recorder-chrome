@@ -161,6 +161,19 @@ function dismissAttachExisting() {
   if (attachBox) attachBox.classList.add("hidden");
 }
 
+// بعد ما التسجيل يتلحق بأمر شغل (جديد أو مفتوح)، بنسأل المستخدم يحب
+// يحتفظ بالتسجيل جوه الأمر (ياخد مساحة تخزين دائمة في IndexedDB) ولا
+// يحذفه فورًا — غالبًا التسجيل مطلوب بس وقت إنشاء الأمر (لمعرفة رقم
+// التليفون/تفاصيل العطل)، فمفيش داعي يفضل مخزّن بعد كده. لو اختار
+// الحذف، بنمسحه فورًا من ImageStore عشان مايخدش مساحة من غير فايدة.
+async function maybeDiscardRecording(ref) {
+  if (!ref) return null;
+  let keep = confirm("تم إرفاق التسجيل الصوتي بأمر الشغل.\n\nموافق = الاحتفاظ به داخل الأمر.\nإلغاء = حذفه الآن لتوفير مساحة التخزين (يُنصح به لو مش محتاجه غير وقت إنشاء الأمر).");
+  if (keep) return ref;
+  if (window.ImageStore?.delete) { try { await window.ImageStore.delete(ref); } catch (e) { console.error("[share-target] فشل حذف التسجيل", e); } }
+  return null;
+}
+
 // إلحاق التسجيل/الملاحظة الجديدة بأمر شغل مفتوح بالفعل، بدل إنشاء أمر
 // مكرر لنفس العميل ونفس المشكلة.
 async function attachRecordingToExistingRequest() {
@@ -176,8 +189,11 @@ async function attachRecordingToExistingRequest() {
     r.fault = (r.fault ? r.fault + "\n\n" : "") + `— مكالمة إضافية (${stamp}):\n${addedNote}`;
   }
   if (__audioRef) {
-    r.callRecordings = Array.isArray(r.callRecordings) ? r.callRecordings : [];
-    r.callRecordings.push({ ref: __audioRef, at: Date.now() });
+    let keptRef = await maybeDiscardRecording(__audioRef);
+    if (keptRef) {
+      r.callRecordings = Array.isArray(r.callRecordings) ? r.callRecordings : [];
+      r.callRecordings.push({ ref: keptRef, at: Date.now() });
+    }
   }
   list[idx] = r;
   put(K.r, list);
@@ -197,7 +213,10 @@ async function createRequestFromCallShare() {
   if (!fault) return alert("اكتب وصف العطل.");
   let s = settings();
   let r = { id: id(), no: orderNo(), customerId: cid, deviceId: did, addressKey: "main", visit: "", status: "جديد", executionPlace: (s.executionPlaces || [])[0] || "عند العميل", workshopStatus: (s.workshopStatuses || [])[0] || "غير مطلوب", partsWaiting: false, tag: "", fault, work: "", labor: 0, parts: [], partsTotal: 0, partsCost: 0, total: 0, deposit: 0, remain: 0, closed: false, createdAt: new Date().toISOString() };
-  if (__audioRef) r.callRecordings = [{ ref: __audioRef, at: Date.now() }];
+  if (__audioRef) {
+    let keptRef = await maybeDiscardRecording(__audioRef);
+    if (keptRef) r.callRecordings = [{ ref: keptRef, at: Date.now() }];
+  }
   recordStatusHistory(r, "", r.status);
   applyStatusTimestamp(r, r.status);
   put(K.r, arr(K.r).concat(r));
