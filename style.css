@@ -570,3 +570,8 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px}
 
 /* تحسين عام لبطاقات الأقسام: ظل أنعم عند التمرير + توهج خفيف */
 .card{will-change:transform}
+
+/* أكواد الكباسات (compcodes.html) — بطاقات عرض بيانات القدرة والتفاصيل الإضافية */
+.comp-fields{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.comp-field{background:var(--bg-sunken);border-radius:8px;padding:5px 9px;font-size:12.5px}.comp-field b{font-weight:bold}.comp-actions{grid-template-columns:1fr 1fr}.comp-fav-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.comp-primary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:8px 0}.comp-kv{background:var(--bg-sunken);border-radius:9px;padding:8px}.comp-kv small{display:block;color:var(--text-muted);font-size:11px;margin-bottom:3px}.comp-kv b{font-size:14px}.comp-extra{margin-top:8px;background:var(--bg-sunken);border-radius:9px;padding:8px}.comp-extra summary{cursor:pointer;font-size:12.5px;color:var(--text-muted)}.comp-extra .comp-fields{margin-top:6px}
+@media(max-width:650px){.comp-primary-grid{grid-template-columns:1fr 1fr}}

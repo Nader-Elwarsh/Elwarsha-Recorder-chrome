@@ -1,4 +1,4 @@
-const CACHE_NAME = "workshop-v11-73";
+const CACHE_NAME = "workshop-v11-75";
 importScripts("./notif-shared.js");
 importScripts("./share-store.js");
 const CORE_FILES = [
@@ -16,6 +16,7 @@ const CORE_FILES = [
   "./part.html",
   "./part-moves.html",
   "./faultcodes.html",
+  "./compcodes.html",
   "./faultcode.html",
   "./settings.html",
   "./treasury.html",
@@ -42,6 +43,8 @@ const CORE_FILES = [
   "./app-settings-lists.js",
   "./app-parts.js",
   "./app-fault-codes.js",
+  "./app-compressor-codes.js",
+  "./compressor-db.js",
   "./app-part-moves.js",
   "./app-inventory-bulk.js",
   "./app-settings.js",

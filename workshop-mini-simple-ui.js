@@ -593,7 +593,7 @@
           const qty = +p.qty || 0, use = +p.use || 0, total = qty * use;
           const isLow = qty <= (+p.min || 0);
           return `<tr class="report-row-clickable" onclick="location.href='part.html?id=${p.id}'">
-            <td><a href="part.html?id=${p.id}">${esc2(p.name)}</a><br><small style="color:#8a97a3"><span class="cat-dot ${categoryColorClass(p.category)}"></span>${esc2(p.category || "—")} • ${esc2(p.code || "بدون كود")}</small></td>
+            <td><a href="part.html?id=${p.id}">${esc2(p.name)}</a><br><small style="color:var(--text-muted)"><span class="cat-dot ${categoryColorClass(p.category)}"></span>${esc2(p.category || "—")} • ${esc2(p.code || "بدون كود")}</small></td>
             <td>${qty}</td>
             <td>${use.toFixed(2)} ج</td>
             <td>${total.toFixed(2)} ج</td>

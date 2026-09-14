@@ -317,8 +317,8 @@ function renderWalletDetail(){
         <label class="wide">تفاصيل إضافية<input id="wdNote" placeholder="اختياري"></label>
       </div>
       <div class="actions">
-        <button type="button" class="primary" onclick="walletManualFromDetail('in','${esc(name)}')">➕ وارد</button>
-        <button type="button" class="secondary danger-btn" onclick="walletManualFromDetail('out','${esc(name)}')">➖ صرف</button>
+        <button type="button" class="primary" onclick="walletManualFromDetail('in','${escAttr(name)}')">➕ وارد</button>
+        <button type="button" class="secondary danger-btn" onclick="walletManualFromDetail('out','${escAttr(name)}')">➖ صرف</button>
       </div>
     </div>
     ${walletTransferWidgetHtml()}`:`<div class="hint">ده حساب تجميعي حسب تصنيف الحركة "${esc(name)}" عبر كل المحافظ مع بعض، مش محفظة فعلية بذاتها. لتسجيل حركة جديدة بنفس التصنيف، من صفحة أي حساب أو من صفحة الحسابات الرئيسية.</div>`}

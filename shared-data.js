@@ -71,6 +71,24 @@
   function esc(v) {
     return String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[c]));
   }
+  /* escAttr(v) — للاستخدام حصريًا لما نحط نص جوه ('${...}') داخل onclick="" (سترنج
+     جافاسكريبت بمزدوجتين خارجيًا وفاصلة واحدة داخليًا). esc() العادية بتحوّل ' لـ
+     &#039; وهو ترميز HTML صحيح، لكن المتصفح بيفك ترميز الـ HTML entities في قيمة
+     الـ attribute *قبل* ما ينفّذها كجافاسكريبت — يعني &#039; ترجع ' عادية تاني
+     قدام الـ JS parser وتقفل السترنج بدري (لو مثلاً اسم مركز أو صنف أو تصنيف فيه
+     علامة اقتباس إنجليزي). escAttr() بتعمل الهروب الصح للسياقين مع بعض: تهرّب \\
+     و' بطريقة جافاسكريبت (\\\\ و\\') عشان يفضلوا زي ما هما لحد ما الـ JS يشتغل،
+     وتهرّب " بطريقة HTML (&quot;) عشان الـ attribute المزدوجة برّه متتقفلش قبل
+     وقتها. لازم تتستخدم بدل esc() في أي '${...}' جوه onclick بس، مش في عرض نص
+     عادي. */
+  function escAttr(v) {
+    return String(v ?? "")
+      .replace(/\\/g, "\\\\")
+      .replace(/'/g, "\\'")
+      .replace(/"/g, "&quot;")
+      .replace(/\n/g, "\\n")
+      .replace(/\r/g, "");
+  }
   function id() { return crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2); }
 
   /* ---------------------------------------------------------------------
@@ -212,7 +230,7 @@
   }
 
   window.WorkshopData = {
-    K, get, put, arr, esc, id, settings, duplicateCustomerByPhone,
+    K, get, put, arr, esc, escAttr, id, settings, duplicateCustomerByPhone,
     customerName, deviceName, addresses, addressText, defineOverride, refreshAllScreens,
     getSchemaVersion, setSchemaVersion, CURRENT_SCHEMA_VERSION, withRollback
   };
@@ -224,6 +242,7 @@
   window.put = put;
   window.arr = arr;
   window.esc = esc;
+  window.escAttr = escAttr;
   window.id = id;
   window.settings = settings;
   window.duplicateCustomerByPhone = duplicateCustomerByPhone;
