@@ -88,7 +88,13 @@ function waNumber(phone){
 function contactLinksHtml(phone){
   if(!phone)return "—";
   let wa=waNumber(phone);
-  return `<a class="tel-link" href="tel:${esc(phone)}">📲 ${esc(phone)}</a>${wa?` <a class="wa-link" href="https://wa.me/${wa}" target="_blank" rel="noopener">💬 واتساب</a>`:""}`;
+  // target="_blank" ضروري هنا: لما التطبيق يبقى مثبّت من كروم (PWA/WebAPK)،
+  // فتح tel: في نفس نافذة التطبيق (زي ما كانت قبل كده) بيدي خطأ
+  // ERR_UNKNOWN_URL_SCHEME لأن نافذة التطبيق المثبّتة ما بتقدرش تسلّم رابط
+  // بروتوكول غير http/https لتطبيق الاتصال بنفسها؛ فتحه كـ"نافذة/تبويب
+  // جديد" بيخلي المتصفح يسلّمه لنظام أندرويد بشكل صحيح، وده اللي بيخلي
+  // رابط الواتساب (اللي أصلاً عنده target="_blank") شغال من غير مشاكل.
+  return `<a class="tel-link" href="tel:${esc(phone)}" target="_blank" rel="noopener">📲 ${esc(phone)}</a>${wa?` <a class="wa-link" href="https://wa.me/${wa}" target="_blank" rel="noopener">💬 واتساب</a>`:""}`;
 }
 
 document.addEventListener("DOMContentLoaded",async()=>{
