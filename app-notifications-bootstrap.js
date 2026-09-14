@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(setupQuickForms,0));
     deferredPrompt=null;
   };
   if('serviceWorker' in navigator){
-    window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js?v=11.66', {updateViaCache: 'none'}).catch(err=>console.warn('PWA service worker:',err)));
+    window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js?v=11.68', {updateViaCache: 'none'}).catch(err=>console.warn('PWA service worker:',err)));
   }
   window.addEventListener('online',()=>document.documentElement.dataset.network='online');
   window.addEventListener('offline',()=>document.documentElement.dataset.network='offline');

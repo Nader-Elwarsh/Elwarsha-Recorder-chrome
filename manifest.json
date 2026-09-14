@@ -4,6 +4,7 @@
   "description": "نظام إدارة الورشة المصغر للعملاء والأجهزة وأوامر الشغل والمخزن",
   "lang": "ar",
   "dir": "rtl",
+  "id": "./?app=workshop-mini",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
