@@ -10,7 +10,7 @@
 .part-autocomplete{position:relative}
 .part-autocomplete-input{width:100%}
 .part-autocomplete-results{position:absolute;z-index:20;top:calc(100% + 4px);right:0;left:0;background:var(--bg-elevated);border:1px solid var(--border);border-radius:9px;max-height:260px;overflow-y:auto;box-shadow:0 4px 14px rgba(0,0,0,.12)}
-.part-ac-item{padding:9px 12px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;align-items:center;border-bottom:1px solid #f0f2f4}
+.part-ac-item{padding:9px 12px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;align-items:center;border-bottom:1px solid var(--border)}
 .part-ac-item:last-child{border-bottom:0}
 .part-ac-item:hover,.part-ac-item:active{background:var(--bg-sunken)}
 .part-ac-item span{color:var(--text-muted);font-size:12px;white-space:nowrap}
@@ -523,6 +523,11 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px}
 }
 /* عناصر خلفيتها الملونة (تنبيه/إضافة سريعة) ثابتة فاتحة في الوضعين، فنجبر لون نص غامق يضمن القراءة فوقها في الداكن */
 [data-theme="dark"] .notice,[data-theme="dark"] .quick-add,[data-theme="dark"] .part-add-external,[data-theme="dark"] .part-row-external,[data-theme="dark"] .simple-value-stat,[data-theme="dark"] .report-card-warn{color:#1a1a1a}
+/* لكن قائمة نتائج البحث (المركز/القرية/القطع...) اللي بتظهر فوق "إضافة سريع" هي سطح مستقل
+   بخلفية داكنة حقيقية في الوضع الليلي (var(--bg-elevated))، فمينفعش يورثها اللون الغامق اللي
+   فوق كان مجبور على العنصر الأب بسبب خلفيته الفاتحة الثابتة — غير كده النص بيبقى غير مقروء
+   (غامق على غامق). فبنرجّع لون النص الطبيعي للثيم الداكن جوه القائمة دي بس. */
+[data-theme="dark"] .quick-add .part-autocomplete-results{color:var(--text)}
 /* أيقونات صغيرة بلون نص ثابت متوسط، بنفتحها شوية في الداكن عشان تفضل واضحة */
 [data-theme="dark"] .simple-record-icon,[data-theme="dark"] .simple-stat span,[data-theme="dark"] .drag-handle{color:#8fb4d9}
 [data-theme="dark"] .part-autocomplete-results,[data-theme="dark"] .simple-tile,[data-theme="dark"] .card,[data-theme="dark"] .panel,[data-theme="dark"] .report,[data-theme="dark"] .dashboard,[data-theme="dark"] .profile,[data-theme="dark"] .item,[data-theme="dark"] .form{box-shadow:var(--shadow-card)}
