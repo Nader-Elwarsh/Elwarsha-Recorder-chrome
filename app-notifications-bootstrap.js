@@ -18,7 +18,7 @@ async function checkNotificationsNow(){
   if(localStorage.getItem("wf_notif_enabled")!=="1")return;
   if(!("Notification" in window)||Notification.permission!=="granted")return;
   if(!("serviceWorker" in navigator))return;
-  let today=new Date().toISOString().slice(0,10);
+  let today=dayKeyLocal(new Date());
   let last=await notifGet("lastNotifiedDate");
   if(last===today)return;
   let snap=await notifGet("snapshot");if(!snap)return;

@@ -114,7 +114,7 @@
       id: id(), refKey: null, manualOverride: true, deleted: false, type: "out",
       amount: +e.amount || 0, wallet: fallbackWallet, category: "مصروف تشغيل",
       subCategory: e.category || "أخرى",
-      date: e.date || (e.createdAt || "").slice(0, 10) || new Date().toISOString().slice(0, 10),
+      date: e.date || (e.createdAt || "").slice(0, 10) || localDateKey(new Date()),
       time: "00:00", reason: e.category || "مصروف تشغيل", note: e.note || "",
       source: "migrated-expense", createdAt: e.createdAt || new Date().toISOString()
     }));
@@ -173,23 +173,31 @@
     { from: 5, to: 6, run: migrate5to6 }
   ];
 
-  async function runMigrations() {
-    let v = window.getSchemaVersion ? window.getSchemaVersion() : 1;
-    let target = window.CURRENT_SCHEMA_VERSION || 1;
-    if (v >= target) return;
-    for (const m of MIGRATIONS) {
-      if (v === m.from) {
+  let migrationPromise = null;
+  function runMigrations() {
+    if (migrationPromise) return migrationPromise;
+    migrationPromise = (async () => {
+      let v = window.getSchemaVersion ? window.getSchemaVersion() : 1;
+      let target = window.CURRENT_SCHEMA_VERSION || 1;
+      if (v >= target) return true;
+      for (const m of MIGRATIONS) {
+        if (v !== m.from) continue;
         try {
           await m.run();
           v = m.to;
           window.setSchemaVersion(v);
         } catch (e) {
           console.error(`[migrations] فشل الترحيل من ${m.from} إلى ${m.to}`, e);
-          break; // نوقف السلسلة عند أول فشل بدل ما نكمل على بيانات غير متسقة
+          return false; // نوقف السلسلة عند أول فشل بدل ما نكمل على بيانات غير متسقة
         }
       }
-    }
+      return v >= target;
+    })();
+    return migrationPromise;
   }
 
   window.runMigrations = runMigrations;
+  // يبدأ الترحيل فور تحميل طبقة الترحيلات، وتعيد كل الصفحات نفس الـ Promise
+  // بدل تشغيل ترحيلات متوازية أو عرض بيانات قديمة قبل انتهائها.
+  window.workshopReady = runMigrations();
 })(window);

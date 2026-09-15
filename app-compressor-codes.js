@@ -18,6 +18,8 @@
   const LS_FAV = "wf_comp_fav";
   const LS_CUSTOM = "wf_comp_custom";
   const MAX_RESULTS = 100;
+  let recordsCache = null;
+  let brandsCache = null;
 
   function getLS(k, f) { try { return JSON.parse(localStorage.getItem(k)) ?? f; } catch { return f; } }
   function putLS(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { alert("تعذر الحفظ محليًا: " + (e?.message || e)); return false; } }
@@ -30,14 +32,16 @@
   }
 
   function db() { return window.COMPRESSOR_DB || {}; }
-  function allBrands() { return Object.keys(db()).sort((a, b) => a.localeCompare(b, "ar")); }
+  function allBrands() { if (!brandsCache) brandsCache = Object.keys(db()).sort((a, b) => a.localeCompare(b, "ar")); return brandsCache; }
 
   function flatRecords() {
+    if (recordsCache) return recordsCache;
     const out = [];
     const d = db();
-    for (const brand of Object.keys(d)) for (const rec of d[brand]) out.push({ brand, custom: false, rec });
-    for (const c of customEntries()) out.push({ brand: c.brand || "إضافات يدوية", custom: true, rec: c.rec, _id: c.id });
-    return out;
+    for (const brand of Object.keys(d)) for (const rec of d[brand]) out.push({ brand, custom: false, rec, _searchBlob: recordSearchBlob(rec) });
+    for (const c of customEntries()) out.push({ brand: c.brand || "إضافات يدوية", custom: true, rec: c.rec, _id: c.id, _searchBlob: recordSearchBlob(c.rec) });
+    recordsCache = out;
+    return recordsCache;
   }
 
   // كل قيم السجل (بما فيها الحقول المتداخلة زي temp_capacity/extra) في نص واحد للبحث الحر
@@ -57,7 +61,7 @@
     let list = flatRecords();
     if (brandFilter) list = list.filter(x => x.brand === brandFilter);
     if (q) {
-      list = list.filter(x => normalize(x.rec.model).includes(q) || recordSearchBlob(x.rec).includes(q));
+      list = list.filter(x => x._searchBlob.includes(q));
       list.sort((a, b) => {
         const am = normalize(a.rec.model).startsWith(q) ? 0 : 1;
         const bm = normalize(b.rec.model).startsWith(q) ? 0 : 1;
@@ -83,6 +87,7 @@
   window.deleteCustomCompressor = function (id) {
     if (!confirm("حذف الإضافة اليدوية دي؟")) return;
     putLS(LS_CUSTOM, customEntries().filter(c => c.id !== id));
+    recordsCache = null;
     renderCompressorResults();
   };
 
@@ -263,6 +268,7 @@
     const list = customEntries();
     list.push({ id: id_(), brand, rec, addedAt: new Date().toISOString() });
     putLS(LS_CUSTOM, list);
+    recordsCache = null;
     ["ccModel", "ccBrand", "ccHp", "ccAmp", "ccBtu", "ccFreon", "ccApp", "ccRunCap", "ccStartCap", "ccOil", "ccNote"].forEach(x => { const e = document.getElementById(x); if (e) e.value = ""; });
     toggle("compAddBox");
     document.getElementById("compSearch").value = model;

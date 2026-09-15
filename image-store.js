@@ -112,7 +112,8 @@
         tx.oncomplete = () => resolve(true);
         tx.onerror = () => reject(tx.error);
       });
-    } catch (e) {}
+    } catch (e) { return false; }
+    return true;
   }
 
   async function imageStoreClearAll() {
@@ -124,7 +125,8 @@
         tx.oncomplete = () => resolve(true);
         tx.onerror = () => reject(tx.error);
       });
-    } catch (e) {}
+    } catch (e) { return false; }
+    return true;
   }
 
   // بيرجّع src صالح لـ <img> من قيمة الحقل "photo" أيًا كان شكلها:

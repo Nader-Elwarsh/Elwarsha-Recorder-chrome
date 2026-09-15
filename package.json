@@ -1,0 +1,8 @@
+{
+  "name": "workshop-fanya-pwa",
+  "private": true,
+  "scripts": {
+    "test": "node tests/core-tests.js && node tests/migration-tests.js",
+    "check": "node tests/syntax-check.js && npm test"
+  }
+}
