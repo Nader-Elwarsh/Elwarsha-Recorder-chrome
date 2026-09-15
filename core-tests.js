@@ -12,7 +12,15 @@ for(const file of ['app-shared.js','app-data-management.js'])vm.runInContext(fs.
 const d=new Date(2026,8,15,23,30), expectedDay=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`, expectedMonth=expectedDay.slice(0,7);
 assert.strictEqual(context.dayKeyLocal(d),expectedDay,'local day key');
 assert.strictEqual(context.monthKeyLocal(d),expectedMonth,'local month key');
-const valid={};valid[window.K.c]=[];valid.images={};valid._meta={schemaVersion:1};context.validateBackupData(valid);
-const invalid={};invalid[window.K.c]={};assert.throws(()=>context.validateBackupData(invalid),'invalid backup shape');
+const valid={};Object.values(window.K).forEach(k=>{valid[k]=k===window.K.s?null:[]});valid.images={};valid._meta={schemaVersion:1};assert.strictEqual(context.validateBackupData(valid).schemaVersion,1);
+const invalid={...valid};delete invalid[window.K.d];assert.throws(()=>context.validateBackupData(invalid),'missing backup section');
+const malformed={...valid,[window.K.p]:[3]};assert.throws(()=>context.validateBackupData(malformed),'invalid backup record');
+const future={...valid,_meta:{schemaVersion:999}};assert.throws(()=>context.validateBackupData(future),'future backup schema');
+store[window.K.c]=JSON.stringify([{id:'before'}]);store.wf_notif_enabled='true';store.wf_schema_version='6';
+const state=context.captureLocalDataState();store[window.K.c]=JSON.stringify([{id:'partial-change'}]);store.wf_notif_enabled='false';store.wf_schema_version='1';context.restoreLocalDataState(state);
+assert.deepStrictEqual(JSON.parse(store[window.K.c]),[{id:'before'}],'local data rollback');assert.strictEqual(store.wf_notif_enabled,'true','notification rollback');assert.strictEqual(store.wf_schema_version,'6','schema rollback');
 const integrity=context.dataIntegrityReport();assert.strictEqual(integrity.issues.length,0,'empty data integrity');
+store[window.K.p]=JSON.stringify([{id:'p1',name:'قطعة اختبار',qty:-1}]);
+store[window.K.r]=JSON.stringify([{id:'r1',no:'W-test',labor:10,parts:[{partId:'p1',qty:1,sell:5,cost:2}],partsTotal:0,partsCost:0,total:10,deposit:20}]);
+const broken=context.dataIntegrityReport();assert(broken.issues.some(x=>x.includes('كمية غير صالحة')),'negative stock detected');assert(broken.issues.some(x=>x.includes('الإجمالي لا يطابق')),'order total mismatch detected');assert(broken.issues.some(x=>x.includes('العربون غير صالح')),'invalid deposit detected');
 console.log('core-date-backup-tests: PASS');
