@@ -1,0 +1,18 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const store={};
+const localStorage={getItem:k=>store[k]??null,setItem:(k,v)=>{store[k]=String(v)},removeItem:k=>delete store[k]};
+const document={addEventListener:()=>{},getElementById:()=>null};
+const window={localStorage,document,crypto:{randomUUID:()=>"test-id"}};
+const context={window,localStorage,document,crypto:window.crypto,console,alert:()=>{},confirm:()=>true};
+const vmContext=vm.createContext(context);
+vm.runInContext(fs.readFileSync(`${__dirname}/../shared-data.js`,'utf8'),vmContext,{filename:'shared-data.js'});
+context.K=window.K;
+context.arr=window.arr;context.get=window.get;context.put=window.put;context.esc=window.esc;
+for(const file of ['app-shared.js','app-data-management.js'])vm.runInContext(fs.readFileSync(`${__dirname}/../${file}`,'utf8'),vmContext,{filename:file});
+const d=new Date(2026,8,15,23,30), expectedDay=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`, expectedMonth=expectedDay.slice(0,7);
+assert.strictEqual(context.dayKeyLocal(d),expectedDay,'local day key');
+assert.strictEqual(context.monthKeyLocal(d),expectedMonth,'local month key');
+const valid={};valid[window.K.c]=[];valid.images={};valid._meta={schemaVersion:1};context.validateBackupData(valid);
+const invalid={};invalid[window.K.c]={};assert.throws(()=>context.validateBackupData(invalid),'invalid backup shape');
+const integrity=context.dataIntegrityReport();assert.strictEqual(integrity.issues.length,0,'empty data integrity');
+console.log('core-date-backup-tests: PASS');
