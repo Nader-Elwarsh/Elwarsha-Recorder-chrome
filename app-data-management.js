@@ -52,23 +52,31 @@ async function restoreBackupFile(input){
   if(!confirm('⚠️ استيراد نسخة احتياطية هيستبدل كل بيانات النظام الحالية (العملاء والأجهزة وأوامر الشغل والمخزن والخزنة والمهام والصور) بالبيانات اللي في الملف، ومينفعش يترجع بعد كده.\n\nهل أنت متأكد إنك عايز تكمل؟')){input.value="";return}
   let reader=new FileReader();
   reader.onload=async()=>{
+    let oldImages=null;
     try{
       let data=JSON.parse(reader.result);
       if(!data||typeof data!=="object")throw new Error("bad");
       let keys=Object.values(K);
       let hasAny=keys.some(k=>k in data);
       if(!hasAny)throw new Error("empty");
+      for(const k of keys){
+        if(!(k in data))continue;
+        const v=data[k], isSettings=k===K.s;
+        if(isSettings?(v===null||typeof v!=="object"||Array.isArray(v)):!Array.isArray(v))throw new Error("invalid-shape");
+      }
       // لو الملف من نسخة أقدم من إضافة schemaVersion، نعتبره إصدار 1
       // ونسيب الترحيل العادي (migrations.js) يشتغل بعد كده زي أي بيانات قديمة.
       let backupSchema=data._meta?.schemaVersion||1;
-      keys.forEach(k=>{if(k in data)put(k,data[k])});
-      if("wf_notif_enabled" in data && data.wf_notif_enabled!=null)localStorage.setItem("wf_notif_enabled",data.wf_notif_enabled);
+      const staged={};keys.forEach(k=>{if(k in data)staged[k]=data[k]});
+      if("wf_notif_enabled" in data && data.wf_notif_enabled!=null)staged.wf_notif_enabled=data.wf_notif_enabled;
+      oldImages=window.ImageStore?.exportAll?await window.ImageStore.exportAll():null;
       // الاسترجاع معناه استبدال كامل لكل بيانات النظام (زي ما موضّح في رسالة
       // التأكيد فوق)، فلازم نمسح صور IndexedDB القديمة الأول قبل ما نستورد
       // صور الملف — وإلا صور من قبل الاسترجاع (بمراجع مختلفة عن اللي في
       // الملف) هتفضل موجودة يتيمة جنب صور النسخة المستوردة.
       if(window.ImageStore?.clearAll)await window.ImageStore.clearAll();
       if(data.images && window.ImageStore)await window.ImageStore.importAll(data.images);
+      if(!commitStorage(staged))throw new Error("storage-failed");
       if(window.setSchemaVersion)window.setSchemaVersion(Math.min(backupSchema,window.CURRENT_SCHEMA_VERSION||backupSchema));
       // الملف اللي اترجع منه أصلًا هو نسخة احتياطية، فتاريخ تصديره (لو موجود)
       // بيبقى أدق تقدير لـ"آخر نسخة احتياطية معروفة" من نظافة العداد على طول.
@@ -76,6 +84,7 @@ async function restoreBackupFile(input){
       alert("✅ تم استرجاع النسخة الاحتياطية بنجاح. هيتم فتح الرئيسية الآن.");
       location.href="index.html";
     }catch(e){
+      try{if(window.ImageStore?.clearAll&&oldImages){await window.ImageStore.clearAll();await window.ImageStore.importAll(oldImages)}}catch(_){ }
       alert("تعذر قراءة الملف. تأكد إنه ملف نسخة احتياطية صحيح تم تصديره من نفس النظام.");
     }
     input.value="";

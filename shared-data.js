@@ -50,6 +50,7 @@
     walletCategories: ["تحصيل عميل", "مصروف شخصي", "مصروف تشغيل", "سلفة / تحويل", "أخرى"]
   };
 
+  let storageErrorSeq = 0;
   function get(k, f = []) {
     try { let x = JSON.parse(localStorage.getItem(k)); return x ?? f; }
     catch { return f; }
@@ -63,8 +64,31 @@
       // وضع التصفح الخاص في بعض المتصفحات) — من غير هذا الفحص كانت العملية
       // بتفشل بصمت والمستخدم يفتكر إن البيانات اتحفظت وهي فعليًا لأ.
       console.error(`[WorkshopData] فشل حفظ "${k}" في localStorage:`, e);
+      storageErrorSeq++;
       alert("⚠️ لم يتم الحفظ! مساحة التخزين في المتصفح ممتلئة على ما يبدو.\n\nخد نسخة احتياطية فورًا من بيانات موجودة (لو قدرت)، وامسح بيانات قديمة مش محتاجها من ⚙️ الإعدادات، أو فرّغ مساحة على الجهاز.");
       return false;
+    }
+  }
+  function commitStorage(values) {
+    const entries = Object.entries(values || {}), previous = {};
+    try {
+      for (const [k, v] of entries) JSON.stringify(v);
+      for (const [k] of entries) previous[k] = localStorage.getItem(k);
+      for (const [k, v] of entries) localStorage.setItem(k, JSON.stringify(v));
+      return true;
+    } catch (e) {
+      for (const [k, raw] of Object.entries(previous)) {
+        try { if (raw === null) localStorage.removeItem(k); else localStorage.setItem(k, raw); } catch (_) {}
+      }
+      console.error("[WorkshopData] فشل حفظ عملية متعددة المفاتيح:", e);
+      storageErrorSeq++;
+      alert("⚠️ لم يتم حفظ العملية بالكامل. لم يتم تغيير البيانات، وفرّغ مساحة التخزين ثم حاول مرة أخرى.");
+      return false;
+    }
+  }
+  function restoreStorageValues(values) {
+    for (const [k, v] of Object.entries(values || {})) {
+      try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {}
     }
   }
   function arr(k) { return get(k, []); }
@@ -124,14 +148,16 @@
   function withRollback(keys, fn) {
     let snapshot = {};
     keys.forEach(k => { snapshot[k] = get(k, null); });
+    const errorBefore = storageErrorSeq;
     try {
       let result = fn();
+      if (storageErrorSeq !== errorBefore) result = { ok: false, error: "storage-failed" };
       if (result && result.ok === false) {
-        keys.forEach(k => put(k, snapshot[k]));
+        restoreStorageValues(snapshot);
       }
       return result;
     } catch (e) {
-      keys.forEach(k => put(k, snapshot[k]));
+      restoreStorageValues(snapshot);
       throw e;
     }
   }
@@ -230,7 +256,7 @@
   }
 
   window.WorkshopData = {
-    K, get, put, arr, esc, escAttr, id, settings, duplicateCustomerByPhone,
+    K, get, put, commitStorage, arr, esc, escAttr, id, settings, duplicateCustomerByPhone,
     customerName, deviceName, addresses, addressText, defineOverride, refreshAllScreens,
     getSchemaVersion, setSchemaVersion, CURRENT_SCHEMA_VERSION, withRollback
   };
@@ -240,6 +266,7 @@
   window.K = K;
   window.get = get;
   window.put = put;
+  window.commitStorage = commitStorage;
   window.arr = arr;
   window.esc = esc;
   window.escAttr = escAttr;

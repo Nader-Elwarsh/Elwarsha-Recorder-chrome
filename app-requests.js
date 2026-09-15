@@ -33,7 +33,7 @@ function addPartToOrder(){let hidden=document.getElementById("rPart"),pid=hidden
 function addExternalPartToOrder(){let nameEl=document.getElementById("rExtName"),buyEl=document.getElementById("rExtBuy"),sellEl=document.getElementById("rExtSell"),qtyEl=document.getElementById("rExtQty");let name=(nameEl?.value||"").trim();if(!name)return alert("اكتب اسم القطعة.");let cost=+(buyEl?.value||0),sell=+(sellEl?.value||0),q=+(qtyEl?.value||1);if(!Number.isFinite(q)||q<1)q=1;if(!Number.isFinite(cost)||cost<0||!Number.isFinite(sell)||sell<0)return alert("اكتب أسعار صحيحة.");currentParts.push({external:true,name,qty:q,sell,cost});renderOrderParts();calc();if(nameEl)nameEl.value="";if(buyEl)buyEl.value="";if(sellEl)sellEl.value="";if(qtyEl)qtyEl.value=1}
 function renderOrderParts(){let el=document.getElementById("orderParts");el.innerHTML=currentParts.map((x,i)=>{let p=x.external?null:arr(K.p).find(z=>z.id===x.partId);let nm=x.external?(x.name||"قطعة خارجية"):(p?.name||"قطعة محذوفة");let amount=x.qty*x.sell;let amountLabel=`${amount.toFixed(2)} ج`;return `<div class="part-row${x.external?" part-row-external":""}"><span>${x.external?"🧳 ":""}${esc(nm)}${x.external?` <small class="ext-badge">خارج المخزن</small>`:""}</span><input type="number" min="1" value="${x.qty}" onchange="currentParts[${i}].qty=+this.value;calc();renderOrderParts()"><span title="${x.external?`سعر الشراء ${(+x.cost||0).toFixed(2)} ج`:""}">${amountLabel}</span><button type="button" class="secondary" onclick="currentParts.splice(${i},1);renderOrderParts();calc()">🗑️</button></div>`}).join("")}
 function calc(){let ps=partsStockTotal(currentParts),t=ps+(+rLabor.value||0),dep=+rDeposit.value||0;rPartsTotal.value=ps.toFixed(2);rTotal.value=t.toFixed(2);remainBox.classList.toggle("hidden",dep<=0);rRemain.value=Math.max(0,t-dep).toFixed(2)}
-function adjustStockForOrder(oldParts,newParts,requestId){let stock=arr(K.p),moves=arr(K.m),delta={};oldParts.filter(x=>x.partId&&!x.external).forEach(x=>delta[x.partId]=(delta[x.partId]||0)+x.qty);newParts.filter(x=>x.partId&&!x.external).forEach(x=>delta[x.partId]=(delta[x.partId]||0)-x.qty);for(let [pid,d] of Object.entries(delta)){if(!d)continue;let p=stock.find(z=>z.id===pid);if(!p)continue;if(d>0)p.qty=(+p.qty||0)+d;else{let need=-d;if(need>(+p.qty||0))return false;p.qty=(+p.qty||0)-need}moves.push({id:id(),partId:pid,type:d>0?"إرجاع بسبب تعديل أمر":"خروج بسبب تعديل أمر",qty:Math.abs(d),requestId,at:new Date().toISOString()})}put(K.p,stock);put(K.m,moves);return true}
+function adjustStockForOrder(oldParts,newParts,requestId,stock=arr(K.p),moves=arr(K.m)){let delta={};oldParts.filter(x=>x.partId&&!x.external).forEach(x=>delta[x.partId]=(delta[x.partId]||0)+x.qty);newParts.filter(x=>x.partId&&!x.external).forEach(x=>delta[x.partId]=(delta[x.partId]||0)-x.qty);for(let [pid,d] of Object.entries(delta)){if(!d)continue;let p=stock.find(z=>z.id===pid);if(!p)return false;if(d>0)p.qty=(+p.qty||0)+d;else{let need=-d;if(need>(+p.qty||0))return false;p.qty=(+p.qty||0)-need}moves.push({id:id(),partId:pid,type:d>0?"إرجاع بسبب تعديل أمر":"خروج بسبب تعديل أمر",qty:Math.abs(d),requestId,at:new Date().toISOString()})}return {stock,moves}}
 // saveRequest() كانت بتخلط بين قراءة الفورم من الـ DOM ومنطق الحفظ والمخزون في
 // دالة واحدة. اتقسمت لـ 3: قراءة الفورم (collectRequestFormData) — منطق الحفظ
 // الصِرف اللي مبيلمسش DOM خالص (persistRequestRecord، ممكن يُختبر لوحده أو
@@ -45,14 +45,15 @@ function persistRequestRecord(formData,existing){
   // withRollback (shared-data.js) بيغطي wf_p وwf_m مع بعض، وبيرجعهم
   // تلقائيًا لو رجّعنا {ok:false} أو حصل استثناء — بدل ما نعمل الإرجاع يدوي.
   let partsCost=partsStockCost(formData.parts);
-  return withRollback([K.p,K.m],()=>{
+  return withRollback([K.p,K.m,K.r,K.wtx],()=>{
     if(existing){
       // الأمر الملغي لا تكون قطعه محجوزة من المخزن؛ نحسب فرق المخزون
       // بين الحالة السابقة والجديدة مرة واحدة فقط، حتى لا تتكرر الإعادة
       // أو الخصم عند تعديل أمر ملغي أو إعادة فتحه.
       let oldParts=existing.status==="ملغي"?[]:(existing.parts||[]);
       let newParts=formData.status==="ملغي"?[]:formData.parts;
-      if(!adjustStockForOrder(oldParts,newParts,existing.id)){
+      let stock=arr(K.p),moves=arr(K.m),adjusted=adjustStockForOrder(oldParts,newParts,existing.id,stock,moves);
+      if(!adjusted){
         return{ok:false,error:"الكمية الجديدة غير متاحة في المخزن."}
       }
       let fromStatus=existing.status;
@@ -66,9 +67,10 @@ function persistRequestRecord(formData,existing){
         if(fromStatus==="ملغي"&&existing.status==="جديد"){existing.cancelReason="";existing.cancelledAt=null;existing.reopenedAt=new Date().toISOString()}
         recordStatusHistory(existing,fromStatus,existing.status);
       }
-      put(K.r,arr(K.r).map(x=>x.id===existing.id?existing:x));
+      let saved=commitStorage({[K.p]:stock,[K.m]:moves,[K.r]:arr(K.r).map(x=>x.id===existing.id?existing:x)});
+      if(!saved)return{ok:false,error:"تعذر حفظ الأمر والمخزون. لم يتم تغيير البيانات."};
       syncTreasuryForOrderDeposit(existing);
-      if(typeof syncWalletForOrderDeposit==="function")syncWalletForOrderDeposit(existing);
+      if(typeof syncWalletForOrderDeposit==="function"&&!syncWalletForOrderDeposit(existing))return{ok:false,error:"تعذر حفظ حركة العربون. تم التراجع عن العملية."};
       return{ok:true,request:existing}
     }
     let r={id:id(),no:orderNo(),customerId:formData.customerId,deviceId:formData.deviceId,addressKey:formData.addressKey,visit:formData.visit,status:formData.status,executionPlace:formData.executionPlace,workshopStatus:formData.workshopStatus,partsWaiting:formData.partsWaiting,tag:formData.tag,fault:formData.fault,work:formData.work,labor:formData.labor,parts:formData.parts,partsTotal:formData.partsTotal,partsCost,total:formData.total,deposit:formData.deposit,depositWallet:formData.depositWallet,remain:Math.max(0,formData.total-formData.deposit),closed:false,createdAt:new Date().toISOString()};
@@ -76,10 +78,9 @@ function persistRequestRecord(formData,existing){
     recordStatusHistory(r,"",r.status);
     let stock=arr(K.p),moves=arr(K.m);
     formData.parts.filter(x=>!x.external).forEach(x=>{let p=stock.find(z=>z.id===x.partId);if(p){p.qty=Math.max(0,(+p.qty||0)-x.qty);moves.push({id:id(),partId:p.id,type:"خروج",qty:x.qty,requestId:r.id,at:new Date().toISOString()})}});
-    put(K.p,stock);put(K.m,moves);
-    put(K.r,arr(K.r).concat(r));
+    if(!commitStorage({[K.p]:stock,[K.m]:moves,[K.r]:arr(K.r).concat(r)}))return{ok:false,error:"تعذر حفظ الأمر والمخزون. لم يتم تغيير البيانات."};
     syncTreasuryForOrderDeposit(r);
-    if(typeof syncWalletForOrderDeposit==="function")syncWalletForOrderDeposit(r);
+    if(typeof syncWalletForOrderDeposit==="function"&&!syncWalletForOrderDeposit(r))return{ok:false,error:"تعذر حفظ حركة العربون. تم التراجع عن العملية."};
     return{ok:true,request:r}
   })
 }
@@ -181,7 +182,7 @@ function selectRequestPart(pid){
 }
 function hideRequestPartResults(){setTimeout(()=>document.getElementById("rpPartResults")?.classList.add("hidden"),150)}
 function syncRequestPartQty(){let hiddenEl=document.getElementById("rpPart"),q=document.getElementById("rpQty"),h=document.getElementById("rpStockHint"),selectedId=hiddenEl?.value||"",available=+(arr(K.p).find(x=>x.id===selectedId)?.qty||0);if(q&&selectedId){q.max=Math.max(1,available);q.value=Math.min(Math.max(1,+q.value||1),Math.max(1,available));if(available<1)q.value=0}if(h)h.textContent=selectedId?`المتاح في المخزن: ${available} قطعة — سيتم استخدام الكمية المكتوبة فقط.`:"اكتب اسم القطعة واختر من نتائج البحث لمعرفة الكمية المتاحة."}
-function confirmAddPartToRequest(requestId){let rs=arr(K.r),r=rs.find(x=>x.id===requestId);if(!r)return alert("أمر الشغل غير موجود.");if(r.closed||r.paid)return alert("الأمر مغلق أو مدفوع بالكامل ولا يمكن إضافة قطع غيار.");let pid=document.getElementById("rpPart")?.value||"";if(!pid)return alert("اكتب اسم القطعة واختر واحدة من نتائج البحث أولًا ثم اضغط تأكيد إضافة القطعة.");let q=+(document.getElementById("rpQty")?.value||1),stock=arr(K.p),p=stock.find(x=>x.id===pid),available=+(p?.qty||0);if(!p)return alert("قطعة الغيار المختارة غير موجودة في المخزن.");if(!Number.isFinite(q)||q<1)return alert("اكتب كمية صحيحة.");if(available<q)return alert(`الكمية المطلوبة ${q} أكبر من المتاح ${available}.`);let updatedParts=(r.parts||[]).map(x=>({...x})),existing=updatedParts.find(x=>!x.external&&x.partId===pid&&+x.sell===+p.use&&+x.cost===+p.buy);if(existing)existing.qty=(+existing.qty||0)+q;else updatedParts.push({partId:pid,qty:q,sell:+p.use||0,cost:+p.buy||0});let partsTotal=partsStockTotal(updatedParts),partsCost=partsStockCost(updatedParts),total=(+r.labor||0)+partsTotal;let newStock=stock.map(x=>x.id===pid?{...x,qty:(+x.qty||0)-q}:x),moves=arr(K.m);moves.push({id:id(),partId:pid,type:"خروج بسبب إضافة قطعة لأمر شغل",qty:q,requestId:r.id,at:new Date().toISOString()});let updated={...r,parts:updatedParts,partsTotal,partsCost,total,remain:Math.max(0,total-(+r.deposit||0))};try{put(K.p,newStock);put(K.m,moves);put(K.r,rs.map(x=>x.id===r.id?updated:x))}catch(e){alert("تعذر حفظ إضافة قطعة الغيار: "+(e?.message||e));return}requestProfile()}
+function confirmAddPartToRequest(requestId){let rs=arr(K.r),r=rs.find(x=>x.id===requestId);if(!r)return alert("أمر الشغل غير موجود.");if(r.closed||r.paid)return alert("الأمر مغلق أو مدفوع بالكامل ولا يمكن إضافة قطع غيار.");let pid=document.getElementById("rpPart")?.value||"";if(!pid)return alert("اكتب اسم القطعة واختر واحدة من نتائج البحث أولًا ثم اضغط تأكيد إضافة القطعة.");let q=+(document.getElementById("rpQty")?.value||1),stock=arr(K.p),p=stock.find(x=>x.id===pid),available=+(p?.qty||0);if(!p)return alert("قطعة الغيار المختارة غير موجودة في المخزن.");if(!Number.isFinite(q)||q<1)return alert("اكتب كمية صحيحة.");if(available<q)return alert(`الكمية المطلوبة ${q} أكبر من المتاح ${available}.`);let updatedParts=(r.parts||[]).map(x=>({...x})),existing=updatedParts.find(x=>!x.external&&x.partId===pid&&+x.sell===+p.use&&+x.cost===+p.buy);if(existing)existing.qty=(+existing.qty||0)+q;else updatedParts.push({partId:pid,qty:q,sell:+p.use||0,cost:+p.buy||0});let partsTotal=partsStockTotal(updatedParts),partsCost=partsStockCost(updatedParts),total=(+r.labor||0)+partsTotal;let newStock=stock.map(x=>x.id===pid?{...x,qty:(+x.qty||0)-q}:x),moves=arr(K.m);moves.push({id:id(),partId:pid,type:"خروج بسبب إضافة قطعة لأمر شغل",qty:q,requestId:r.id,at:new Date().toISOString()});let updated={...r,parts:updatedParts,partsTotal,partsCost,total,remain:Math.max(0,total-(+r.deposit||0))};if(!commitStorage({[K.p]:newStock,[K.m]:moves,[K.r]:rs.map(x=>x.id===r.id?updated:x)}))return;requestProfile()}
 function confirmAddExternalPartToRequest(requestId){let rs=arr(K.r),r=rs.find(x=>x.id===requestId);if(!r)return alert("أمر الشغل غير موجود.");if(r.closed||r.paid)return alert("الأمر مغلق أو مدفوع بالكامل ولا يمكن إضافة قطع غيار.");let nameEl=document.getElementById("rpExtName"),buyEl=document.getElementById("rpExtBuy"),sellEl=document.getElementById("rpExtSell"),qtyEl=document.getElementById("rpExtQty");let name=(nameEl?.value||"").trim();if(!name)return alert("اكتب اسم القطعة.");let cost=+(buyEl?.value||0),sell=+(sellEl?.value||0),q=+(qtyEl?.value||1);if(!Number.isFinite(q)||q<1)q=1;if(!Number.isFinite(cost)||cost<0||!Number.isFinite(sell)||sell<0)return alert("اكتب أسعار صحيحة.");let updatedParts=(r.parts||[]).map(x=>({...x}));updatedParts.push({external:true,name,qty:q,sell,cost});let partsTotal=partsStockTotal(updatedParts),partsCost=partsStockCost(updatedParts),total=(+r.labor||0)+partsTotal;let updated={...r,parts:updatedParts,partsTotal,partsCost,total,remain:Math.max(0,total-(+r.deposit||0))};try{put(K.r,rs.map(x=>x.id===r.id?updated:x))}catch(e){alert("تعذر حفظ إضافة القطعة: "+(e?.message||e));return}if(nameEl)nameEl.value="";if(buyEl)buyEl.value="";if(sellEl)sellEl.value="";if(qtyEl)qtyEl.value=1;requestProfile()}
 // markPaidAndClose / closeOrder: اتنقلوا لنسخة واحدة موحّدة في app-shared.js
 // (بيتحمّل قبل الملف ده في كل صفحة) بدل ما يتكرروا هنا وفي

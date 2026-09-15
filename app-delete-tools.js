@@ -1,25 +1,70 @@
 /* app-delete-tools.js — أدوات حذف فردي/جماعي للعملاء والأجهزة وأوامر الشغل. */
-// بيمسح تسجيلات المكالمات المرفقة بأوامر شغل (من IndexedDB عبر
-// ImageStore) قبل ما نمسح الأوامر نفسها من localStorage — عشان
-// التسجيلات الصوتية متفضلش تايهة وياخدة مساحة تخزين من غير فايدة بعد
-// حذف الأمر (نفس منطق تنظيف صور الأجهزة الموجود جنبها بالظبط تحت).
 function cleanupRequestRecordings(requests){if(!window.ImageStore?.delete)return;(requests||[]).forEach(r=>(r.callRecordings||[]).forEach(cr=>{if(cr?.ref)window.ImageStore.delete(cr.ref)}))}
-function requestPartsToRestore(requests){return (requests||[]).filter(r=>r.status!=="ملغي")}
-function removeWalletEntriesForRequests(requestIds){
-  if(!Array.isArray(requestIds)||!requestIds.length)return;
-  const ids=new Set(requestIds.map(String)), entries=arr(K.wtx);
-  entries.forEach(x=>{
+function cleanupDevicePhotos(devices){if(!window.ImageStore?.delete)return;(devices||[]).forEach(d=>{if(d.photo)window.ImageStore.delete(d.photo)})}
+function requestPartsToRestore(requests){return(requests||[]).filter(r=>r.status!=="ملغي")}
+function walletEntriesAfterRemovingRequests(requestIds){
+  const ids=new Set((requestIds||[]).map(String));
+  return arr(K.wtx).map(x=>{
     const ref=String(x.refKey||"");
-    if((ref.startsWith("order-deposit-")||ref.startsWith("order-final-"))&&ids.has(ref.replace(/^order-(?:deposit|final)-/,"")))x.deleted=true;
+    return (ref.startsWith("order-deposit-")||ref.startsWith("order-final-"))&&ids.has(ref.replace(/^order-(?:deposit|final)-/,""))?{...x,deleted:true}:x;
   });
-  put(K.wtx,entries);
 }
-function deleteCustomerRecord(cid){let c=arr(K.c).find(x=>x.id===cid);if(!c)return;if(arr(K.d).some(d=>d.customerId===cid)||arr(K.r).some(r=>r.customerId===cid)){alert("لا يمكن حذف العميل الآن لأن له أجهزة أو أوامر شغل مرتبطة به. احذف البيانات المرتبطة أولاً أو استخدم الحذف العام.");return}if(!confirm(`حذف العميل «${c.name||""}» نهائيًا؟`))return;put(K.c,arr(K.c).filter(x=>x.id!==cid));renderCustomers()}
-function deleteDeviceRecord(did){let d=arr(K.d).find(x=>x.id===did);if(!d)return;if(arr(K.r).some(r=>r.deviceId===did)){alert("لا يمكن حذف الجهاز لأنه مرتبط بأمر شغل. احذف أمر الشغل المرتبط أولًا أو استخدم الحذف العام.");return}if(!confirm("حذف الجهاز نهائيًا؟"))return;put(K.d,arr(K.d).filter(x=>x.id!==did));renderDevices()}
-function deleteRequestRecord(rid){let r=arr(K.r).find(x=>x.id===rid);if(!r)return;if(r.closed||r.paid){alert("هذا الأمر مغلق أو مدفوع بالكامل ولا يُحذف من الحذف الخاص. استخدم إدارة البيانات إذا كنت تريد مسح بيانات قديمة بشكل عام.");return}if(!confirm(`حذف أمر الشغل ${r.no||""} نهائيًا؟`))return;let stock=arr(K.p),parts=requestPartsToRestore([r]).flatMap(x=>x.parts||[]);parts.forEach(x=>{let p=stock.find(z=>z.id===x.partId);if(p)p.qty=(+p.qty||0)+(+x.qty||0)});put(K.p,stock);put(K.m,arr(K.m).filter(x=>x.requestId!==rid));cleanupRequestRecordings([r]);put(K.r,arr(K.r).filter(x=>x.id!==rid));removeWalletEntriesForRequests([rid]);removeTreasuryEntry("order-deposit-"+rid);renderRequests()}
-function deleteAllCustomers(){let c=arr(K.c);if(!c.length)return alert("لا توجد بيانات عملاء للحذف.");if(!confirm(`حذف جميع العملاء (${c.length}) وما يرتبط بهم من أجهزة وأوامر شغل؟`))return;if(!confirm("تأكيد نهائي: لا يمكن التراجع عن الحذف."))return;let devicesToClean=arr(K.d),requests=arr(K.r);if(window.ImageStore?.delete)devicesToClean.forEach(d=>{if(d.photo)window.ImageStore.delete(d.photo)});cleanupRequestRecordings(requests);let stock=arr(K.p);requestPartsToRestore(requests).forEach(r=>(r.parts||[]).forEach(x=>{let p=stock.find(z=>z.id===x.partId);if(p)p.qty=(+p.qty||0)+(+x.qty||0)}));put(K.p,stock);removeWalletEntriesForRequests(requests.map(r=>r.id));put(K.c,[]);put(K.d,[]);put(K.r,[]);put(K.m,[]);renderCustomers?.();renderDevices?.();renderRequests?.();alert("تم حذف جميع العملاء والبيانات المرتبطة بهم.")}
-function deleteAllDevices(){let d=arr(K.d);if(!d.length)return alert("لا توجد أجهزة للحذف.");if(!confirm(`حذف جميع الأجهزة (${d.length}) وأوامر الشغل المرتبطة بها؟`))return;if(!confirm("تأكيد نهائي: لا يمكن التراجع عن الحذف."))return;let requests=arr(K.r);if(window.ImageStore?.delete)d.forEach(x=>{if(x.photo)window.ImageStore.delete(x.photo)});cleanupRequestRecordings(requests);let stock=arr(K.p);requestPartsToRestore(requests).forEach(r=>(r.parts||[]).forEach(x=>{let p=stock.find(z=>z.id===x.partId);if(p)p.qty=(+p.qty||0)+(+x.qty||0)}));put(K.p,stock);removeWalletEntriesForRequests(requests.map(r=>r.id));put(K.d,[]);put(K.r,[]);put(K.m,[]);renderDevices?.();renderRequests?.();alert("تم حذف جميع الأجهزة وأوامر الشغل المرتبطة بها.")}
-function deleteAllRequests(){let r=arr(K.r);if(!r.length)return alert("لا توجد أوامر شغل للحذف.");if(!confirm(`حذف جميع أوامر الشغل (${r.length}) وإرجاع قطع الغيار المصروفة للمخزن؟`))return;if(!confirm("تأكيد نهائي: لا يمكن التراجع عن الحذف."))return;let stock=arr(K.p);requestPartsToRestore(r).forEach(o=>(o.parts||[]).forEach(x=>{let p=stock.find(z=>z.id===x.partId);if(p)p.qty=(+p.qty||0)+(+x.qty||0)}));put(K.p,stock);cleanupRequestRecordings(r);removeWalletEntriesForRequests(r.map(x=>x.id));put(K.p,stock);put(K.r,[]);put(K.m,[]);renderRequests?.();renderDash?.();monthReport?.();alert("تم حذف جميع أوامر الشغل وإرجاع القطع للمخزن.")}
-function resolveRequestAddress(r){let c=arr(K.c).find(x=>x.id===r.customerId);if(!c)return{};let list=addresses(c);return list.find(a=>a.key===r.addressKey)||list[0]||{}}
+function restorePartsIntoStock(stock,requests){
+  requestPartsToRestore(requests).forEach(r=>(r.parts||[]).forEach(x=>{
+    const p=stock.find(z=>z.id===x.partId);if(p)p.qty=(+p.qty||0)+(+x.qty||0);
+  }));
+}
+function deleteCustomerRecord(cid){
+  const c=arr(K.c).find(x=>x.id===cid);if(!c)return;
+  if(arr(K.d).some(d=>d.customerId===cid)||arr(K.r).some(r=>r.customerId===cid)){alert("لا يمكن حذف العميل الآن لأن له أجهزة أو أوامر شغل مرتبطة به. احذف البيانات المرتبطة أولاً أو استخدم الحذف العام.");return}
+  if(!confirm(`حذف العميل «${c.name||""}» نهائيًا؟`))return;
+  if(!commitStorage({[K.c]:arr(K.c).filter(x=>x.id!==cid)}))return;
+  renderCustomers();
+}
+function deleteDeviceRecord(did){
+  const d=arr(K.d).find(x=>x.id===did);if(!d)return;
+  if(arr(K.r).some(r=>r.deviceId===did)){alert("لا يمكن حذف الجهاز لأنه مرتبط بأمر شغل. احذف أمر الشغل المرتبط أولًا أو استخدم الحذف العام.");return}
+  if(!confirm("حذف الجهاز نهائيًا؟"))return;
+  if(!commitStorage({[K.d]:arr(K.d).filter(x=>x.id!==did)}))return;
+  if(window.ImageStore?.delete&&d.photo)window.ImageStore.delete(d.photo);renderDevices();
+}
+function deleteRequestRecord(rid){
+  const r=arr(K.r).find(x=>x.id===rid);if(!r)return;
+  if(r.closed||r.paid){alert("هذا الأمر مغلق أو مدفوع بالكامل ولا يُحذف من الحذف الخاص. استخدم إدارة البيانات إذا كنت تريد مسح بيانات قديمة بشكل عام.");return}
+  if(!confirm(`حذف أمر الشغل ${r.no||""} نهائيًا؟`))return;
+  const stock=arr(K.p),requests=arr(K.r);restorePartsIntoStock(stock,[r]);
+  const ok=commitStorage({[K.p]:stock,[K.m]:arr(K.m).filter(x=>x.requestId!==rid),[K.r]:requests.filter(x=>x.id!==rid),[K.wtx]:walletEntriesAfterRemovingRequests([rid])});
+  if(!ok)return;
+  cleanupRequestRecordings([r]);renderRequests();
+}
+function deleteAllCustomers(){
+  const c=arr(K.c);if(!c.length)return alert("لا توجد بيانات عملاء للحذف.");
+  if(!confirm(`حذف جميع العملاء (${c.length}) وما يرتبط بهم من أجهزة وأوامر شغل؟`))return;
+  if(!confirm("تأكيد نهائي: لا يمكن التراجع عن الحذف."))return;
+  const devices=arr(K.d),requests=arr(K.r),stock=arr(K.p);restorePartsIntoStock(stock,requests);
+  const ok=commitStorage({[K.p]:stock,[K.c]:[],[K.d]:[],[K.r]:[],[K.m]:[],[K.wtx]:walletEntriesAfterRemovingRequests(requests.map(r=>r.id))});
+  if(!ok)return;
+  cleanupDevicePhotos(devices);cleanupRequestRecordings(requests);renderCustomers?.();renderDevices?.();renderRequests?.();alert("تم حذف جميع العملاء والبيانات المرتبطة بهم.");
+}
+function deleteAllDevices(){
+  const d=arr(K.d);if(!d.length)return alert("لا توجد بيانات أجهزة للحذف.");
+  if(!confirm(`حذف جميع الأجهزة (${d.length}) وأوامر الشغل المرتبطة بها؟`))return;
+  if(!confirm("تأكيد نهائي: لا يمكن التراجع عن الحذف."))return;
+  const requests=arr(K.r),stock=arr(K.p);restorePartsIntoStock(stock,requests);
+  const ok=commitStorage({[K.p]:stock,[K.d]:[],[K.r]:[],[K.m]:[],[K.wtx]:walletEntriesAfterRemovingRequests(requests.map(r=>r.id))});
+  if(!ok)return;
+  cleanupDevicePhotos(d);cleanupRequestRecordings(requests);renderDevices?.();renderRequests?.();alert("تم حذف جميع الأجهزة وأوامر الشغل المرتبطة بها.");
+}
+function deleteAllRequests(){
+  const r=arr(K.r);if(!r.length)return alert("لا توجد أوامر شغل للحذف.");
+  if(!confirm(`حذف جميع أوامر الشغل (${r.length}) وإرجاع قطع الغيار المصروفة للمخزن؟`))return;
+  if(!confirm("تأكيد نهائي: لا يمكن التراجع عن الحذف."))return;
+  const stock=arr(K.p);restorePartsIntoStock(stock,r);
+  const ok=commitStorage({[K.p]:stock,[K.r]:[],[K.m]:[],[K.wtx]:walletEntriesAfterRemovingRequests(r.map(x=>x.id))});
+  if(!ok)return;
+  cleanupRequestRecordings(r);renderRequests?.();renderDash?.();monthReport?.();alert("تم حذف جميع أوامر الشغل وإرجاع القطع للمخزن.");
+}
+function resolveRequestAddress(r){const c=arr(K.c).find(x=>x.id===r.customerId);if(!c)return{};const list=addresses(c);return list.find(a=>a.key===r.addressKey)||list[0]||{}}
 
-// خط سير اليوم: تجميع أوامر الشغل اللي لها موعد زيارة (اليوم/المتأخرة) حسب المركز والقرية.
+// خط سير اليوم: تجميع أوامر الشغل التي لها موعد زيارة حسب المركز والقرية.
+function requestRouteAddress(r){return resolveRequestAddress(r)}

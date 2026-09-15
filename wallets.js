@@ -145,8 +145,8 @@ function upsertWalletTxForRef(refKey,data){
   let a=arr(K.wtx),idx=a.findIndex(x=>x.refKey===refKey&&!x.deleted);
   let amount=+data.amount||0,wallet=(data.wallet||"").trim();
   if(!wallet||amount<=0){
-    if(idx>=0){a[idx].deleted=true;put(K.wtx,a)}
-    return;
+    if(idx>=0)return put(K.wtx,a.map((x,i)=>i===idx?{...x,deleted:true}:x));
+    return true;
   }
   if(idx>=0){
     Object.assign(a[idx],{amount,wallet,category:data.category||a[idx].category,reason:data.reason||a[idx].reason,date:data.date||a[idx].date});
@@ -158,12 +158,12 @@ function upsertWalletTxForRef(refKey,data){
       source:"order-link",createdAt:new Date().toISOString()
     });
   }
-  put(K.wtx,a);
+  return put(K.wtx,a);
 }
 // بيتنادى بعد حفظ أمر الشغل (جديد أو تعديل)؛ لو مفيش محفظة متحددة أو
 // العربون صفر، الحركة (لو كانت موجودة من قبل) بتتشال تلقائيًا.
 function syncWalletForOrderDeposit(order){
-  upsertWalletTxForRef("order-deposit-"+order.id,{
+  return upsertWalletTxForRef("order-deposit-"+order.id,{
     amount:order.deposit,wallet:order.depositWallet,category:"تحصيل عميل",
     reason:`💵 عربون أمر الشغل ${order.no}`
   });
@@ -171,7 +171,7 @@ function syncWalletForOrderDeposit(order){
 // بيتنادى وقت "تم الدفع بالكامل وإغلاق الأمر" مع تحديد المحفظة اللي
 // اتحصل فيها المبلغ المتبقي.
 function syncWalletForOrderClose(order,collected,wallet){
-  upsertWalletTxForRef("order-final-"+order.id,{
+  return upsertWalletTxForRef("order-final-"+order.id,{
     amount:collected,wallet,category:"تحصيل عميل",
     reason:`💳 تحصيل نهائي أمر الشغل ${order.no}`
   });
