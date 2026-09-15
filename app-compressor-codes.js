@@ -3,7 +3,7 @@
    =========================================================
    مرجع بحث عن قدرات الكباسات (قاعدة موديلات ومواصفات عبر 56 ماركة)،
    مأخوذ من ملف إكسل مرجعي وحُوّل لقاعدة بيانات ثابتة منظمة في
-   compressor-db.js (window.COMPRESSOR_DB). كل سجل موحّد الحقول:
+   compressor-index.js وcompressor-brands/*.js. كل سجل موحّد الحقول:
    model, hp (نسبة حصان زي 1/6 أو 1 1/2), refrigerant, btu, kcal,
    application, run_capacitor, start_capacitor, oil_qty/oil_unit,
    amp, watt, freq, displacement, rpm, temp_capacity{}, notes, extra{}.
@@ -20,26 +20,56 @@
   const MAX_RESULTS = 100;
   let recordsCache = null;
   let brandsCache = null;
+  const searchCache = new Map();
+  const actionRegistry = new Map();
+  let compressorDbReady = false;
+  let compressorAllReady = false;
+  let compressorAllPromise = null;
 
   function getLS(k, f) { try { return JSON.parse(localStorage.getItem(k)) ?? f; } catch { return f; } }
   function putLS(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { alert("تعذر الحفظ محليًا: " + (e?.message || e)); return false; } }
 
-  function favorites() { return getLS(LS_FAV, []); }
-  function customEntries() { return getLS(LS_CUSTOM, []); }
+  function favorites() {
+    const seen=new Set();
+    return getLS(LS_FAV,[]).filter(f=>{const k=compressorKey(f?.brand,f?.model);if(!f?.model||seen.has(k))return false;seen.add(k);return true});
+  }
+  function customEntries() {
+    const seen=new Set();
+    return getLS(LS_CUSTOM,[]).filter(c=>{const k=compressorKey(c?.brand,c?.rec?.model);if(!c?.rec?.model||seen.has(k))return false;seen.add(k);return true});
+  }
 
   function normalize(s) {
     return String(s == null ? "" : s).toUpperCase().replace(/[\s\-_\/\\]/g, "");
   }
+  function compressorKey(brand, model) { return `${normalize(brand)}|${normalize(model)}`; }
 
-  function db() { return window.COMPRESSOR_DB || {}; }
-  function allBrands() { if (!brandsCache) brandsCache = Object.keys(db()).sort((a, b) => a.localeCompare(b, "ar")); return brandsCache; }
+  function db() { return window.COMPRESSOR_DB_BRANDS || {}; }
+  function loadScript(src){return new Promise((resolve,reject)=>{const s=document.createElement("script");s.src=src;s.onload=resolve;s.onerror=()=>reject(new Error("تعذر تحميل جزء من قاعدة الأكواد"));document.head.appendChild(s)})}
+  function loadCompressorDb(){
+    if(compressorDbReady)return Promise.resolve();
+    return loadScript("compressor-index.js").then(()=>{window.COMPRESSOR_DB_BRANDS=window.COMPRESSOR_DB_BRANDS||{};compressorDbReady=true});
+  }
+  function allBrands() { if (!brandsCache) brandsCache = Object.keys(window.COMPRESSOR_INDEX?.brands||db()).sort((a, b) => a.localeCompare(b, "ar")); return brandsCache; }
+  function totalRecords(){return window.COMPRESSOR_INDEX?.total||flatRecords().length}
+  function loadAllCompressorBrands(){
+    if(compressorAllReady)return Promise.resolve();if(compressorAllPromise)return compressorAllPromise;
+    const entries=Object.values(window.COMPRESSOR_INDEX?.brands||{});
+    compressorAllPromise=Promise.all(entries.map(x=>loadScript(x.file))).then(()=>{compressorAllReady=true;recordsCache=null;brandsCache=null;searchCache.clear()});
+    return compressorAllPromise;
+  }
+  function loadCompressorBrand(brand){
+    const meta=window.COMPRESSOR_INDEX?.brands?.[brand];if(!meta)return Promise.resolve();
+    if(window.COMPRESSOR_DB_BRANDS?.[brand])return Promise.resolve();
+    return loadScript(meta.file).then(()=>{recordsCache=null;searchCache.clear()});
+  }
 
   function flatRecords() {
     if (recordsCache) return recordsCache;
     const out = [];
+    const seen = new Set();
     const d = db();
-    for (const brand of Object.keys(d)) for (const rec of d[brand]) out.push({ brand, custom: false, rec, _searchBlob: recordSearchBlob(rec) });
-    for (const c of customEntries()) out.push({ brand: c.brand || "إضافات يدوية", custom: true, rec: c.rec, _id: c.id, _searchBlob: recordSearchBlob(c.rec) });
+    for (const brand of Object.keys(d)) for (const rec of d[brand]) { const key=compressorKey(brand,rec.model); if(seen.has(key))continue; seen.add(key); out.push({ brand, custom: false, rec, _modelNorm:normalize(rec.model), _searchBlob: recordSearchBlob(rec) }); }
+    for (const c of customEntries()) { const brand=c.brand||"إضافات يدوية",key=compressorKey(brand,c.rec?.model); if(seen.has(key))continue; seen.add(key); out.push({ brand, custom: true, rec: c.rec, _id: c.id, _modelNorm:normalize(c.rec?.model), _searchBlob: recordSearchBlob(c.rec) }); }
     recordsCache = out;
     return recordsCache;
   }
@@ -56,26 +86,59 @@
     return parts.map(normalize).join(" ");
   }
 
+  function duplicateGroups(){
+    const groups=new Map(),add=(brand,rec,source)=>{if(!rec?.model)return;const key=compressorKey(brand,rec.model);if(!groups.has(key))groups.set(key,[]);groups.get(key).push({brand,rec,source})};
+    for(const brand of Object.keys(db()))for(const rec of db()[brand])add(brand,rec,"القاعدة الأساسية");
+    for(const c of getLS(LS_CUSTOM,[]))add(c.brand||"إضافات يدوية",c.rec,"إضافة يدوية");
+    return [...groups].filter(([,rows])=>rows.length>1).map(([key,rows])=>({key,rows,fields:[...new Set(rows.flatMap(x=>Object.keys(x.rec||{})))].filter(f=>new Set(rows.map(x=>JSON.stringify(x.rec?.[f]??null))).size>1)})).sort((a,b)=>b.rows.length-a.rows.length||a.key.localeCompare(b.key));
+  }
+  function renderDuplicateReview(){
+    const host=document.getElementById("compDuplicatesResult");if(!host)return;const groups=duplicateGroups();
+    if(!groups.length){host.innerHTML='<p class="hint">✅ لا توجد مجموعات تكرار حسب المقارنة الموحّدة.</p>';return}
+    const shown=groups.slice(0,100);
+    host.innerHTML=`<p class="hint">تم العثور على ${groups.length.toLocaleString("ar-EG")} مجموعة مكررة. المعروض أول ${shown.length} مجموعة فقط.</p>`+shown.map(g=>`<details class="comp-duplicate-group"><summary><b>${esc(g.rows[0].brand)} — ${esc(g.rows[0].rec.model)}</b> (${g.rows.length} سجلات${g.fields.length?`, اختلاف في ${g.fields.length} حقول`:"، نفس القيم"})</summary><div class="comp-duplicate-rows">${g.rows.map((x,i)=>`<div class="item"><b>السجل ${i+1} — ${esc(x.source)}</b><small>${esc(Object.entries(x.rec).map(([k,v])=>`${k}: ${typeof v==='object'?JSON.stringify(v):v}`).join(' | '))}</small></div>`).join("")}</div></details>`).join("");
+  }
+
+  function downloadDuplicatePlan(){
+    const groups=duplicateGroups().map(g=>({key:g.key,brand:g.rows[0].brand,model:g.rows[0].rec.model,recordCount:g.rows.length,differentFields:g.fields,sources:g.rows.map(x=>x.source),records:g.rows.map(x=>x.rec)}));
+    const payload={type:"compressor-duplicate-review",version:1,createdAt:new Date().toISOString(),warning:"مراجعة فقط — لا تُستخدم للحذف التلقائي",groups};
+    const a=document.createElement("a"),url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));a.href=url;a.download="compressor-duplicate-review-plan.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast(`✅ تم تنزيل خطة ${groups.length.toLocaleString("ar-EG")} مجموعة`);
+  }
+  function mergeCompatibleCustom(){
+    const raw=getLS(LS_CUSTOM,[]),groups=duplicateGroups().filter(g=>g.rows.every(x=>x.source==="إضافة يدوية")&&g.fields.length===0);
+    if(!groups.length){toast("لا توجد إضافات يدوية متوافقة للدمج");return}
+    if(!confirm(`سيتم دمج ${groups.length} مجموعة يدوية متوافقة بعد إنشاء نسخة أمان. لا يمكن التراجع إلا باستيراد النسخة. هل تريد المتابعة؟`))return;
+    const backupKey="wf_compressor_custom_merge_backup";if(!putLS(backupKey,{createdAt:new Date().toISOString(),records:raw}))return;
+    const duplicateKeys=new Set(groups.map(g=>g.key)),kept=new Map();
+    for(const row of raw){const key=compressorKey(row.brand,row.rec?.model);if(!duplicateKeys.has(key)){kept.set(`${key}|${row.id}`,row);continue}if(!kept.has(key))kept.set(key,row)}
+    const merged=[...kept.values()];if(!putLS(LS_CUSTOM,merged)){putLS(LS_CUSTOM,raw);return}
+    recordsCache=null;searchCache.clear();renderDuplicateReview();renderCompressorResults();toast(`✅ تم دمج ${raw.length-merged.length} سجل يدوي بعد حفظ نسخة أمان`);
+  }
+
   function searchCompressors(query, brandFilter) {
     const q = normalize(query);
+    const cacheKey = `${q}|${brandFilter||""}`;
+    if (searchCache.has(cacheKey)) return searchCache.get(cacheKey).slice();
     let list = flatRecords();
     if (brandFilter) list = list.filter(x => x.brand === brandFilter);
     if (q) {
       list = list.filter(x => x._searchBlob.includes(q));
       list.sort((a, b) => {
-        const am = normalize(a.rec.model).startsWith(q) ? 0 : 1;
-        const bm = normalize(b.rec.model).startsWith(q) ? 0 : 1;
+        const am = a._modelNorm.startsWith(q) ? 0 : 1;
+        const bm = b._modelNorm.startsWith(q) ? 0 : 1;
         return am - bm;
       });
     }
-    return list;
+    if (searchCache.size >= 40) searchCache.delete(searchCache.keys().next().value);
+    searchCache.set(cacheKey,list);
+    return list.slice();
   }
 
-  function isFavorite(brand, model) { return favorites().some(f => f.brand === brand && f.model === model); }
+  function isFavorite(brand, model) { const key=compressorKey(brand,model); return favorites().some(f => compressorKey(f.brand,f.model)===key); }
 
   function toggleFavorite(brand, model, recJson) {
     let favs = favorites();
-    const idx = favs.findIndex(f => f.brand === brand && f.model === model);
+    const key=compressorKey(brand,model),idx = favs.findIndex(f => compressorKey(f.brand,f.model) === key);
     if (idx >= 0) favs.splice(idx, 1);
     else favs.push({ brand, model, rec: JSON.parse(recJson), addedAt: new Date().toISOString() });
     putLS(LS_FAV, favs);
@@ -88,6 +151,7 @@
     if (!confirm("حذف الإضافة اليدوية دي؟")) return;
     putLS(LS_CUSTOM, customEntries().filter(c => c.id !== id));
     recordsCache = null;
+    searchCache.clear();
     renderCompressorResults();
   };
 
@@ -167,8 +231,9 @@
     // المزدوج لـ HTML entity (وده آمن هنا لأن الـ argument نفسه متلفوف
     // بعلامة اقتباس مفردة، مش مزدوجة) — نفس الطريقة المستخدمة في باقي
     // النظام لأي نص بيتحط جوه onclick.
-    const recJson = escAttr(JSON.stringify(rec));
     const specId = "spec_" + Math.random().toString(36).slice(2);
+    const actionId = "a" + Math.random().toString(36).slice(2);
+    actionRegistry.set(actionId,{item,specId});
     return `<div class="item">
       <div class="item-head">
         <b>🔩 ${esc(model)}</b>
@@ -182,9 +247,9 @@
       <textarea id="${specId}" class="hidden">${esc(specTextForCopy(item))}</textarea>
       <div class="actions comp-actions">
         ${item.custom
-          ? `<button type="button" class="secondary small-btn" onclick="deleteCustomCompressor('${escAttr(item._id)}')">🗑️ حذف الإضافة</button>`
-          : `<button type="button" class="secondary small-btn" onclick="toggleCompressorFavorite('${escAttr(item.brand)}','${escAttr(model)}','${recJson}')">${fav ? "💔 إزالة من المفضلة" : "⭐ حفظ في المفضلة"}</button>`}
-        <button type="button" class="secondary small-btn" onclick="copyCompressorSpec('${escAttr(specId)}')">📋 نسخ البيانات</button>
+          ? `<button type="button" class="secondary small-btn" data-comp-action="delete" data-comp-id="${escAttr(actionId)}">🗑️ حذف الإضافة</button>`
+          : `<button type="button" class="secondary small-btn" data-comp-action="favorite" data-comp-id="${escAttr(actionId)}">${fav ? "💔 إزالة من المفضلة" : "⭐ حفظ في المفضلة"}</button>`}
+        <button type="button" class="secondary small-btn" data-comp-action="copy" data-comp-id="${escAttr(actionId)}">📋 نسخ البيانات</button>
       </div>
     </div>`;
   }
@@ -217,8 +282,18 @@
     const favs = favorites();
     if (!favs.length) { host.innerHTML = ""; return; }
     host.innerHTML = `<h3>⭐ المفضلة (${favs.length})</h3><div class="comp-fav-chips">` +
-      favs.map(f => `<button type="button" class="secondary mini-action" onclick="document.getElementById('compSearch').value='${escAttr(f.model)}';renderCompressorResults()">${esc(f.model)} <small>(${esc(f.brand)})</small></button>`).join("") +
+      favs.map(f => `<button type="button" class="secondary mini-action" data-comp-fav-model="${escAttr(f.model)}" data-comp-fav-brand="${escAttr(f.brand)}">${esc(f.model)} <small>(${esc(f.brand)})</small></button>`).join("") +
       `</div>`;
+  }
+
+  function handleCompressorAction(event){
+    const fav=event.target.closest("[data-comp-fav-model]");
+    if(fav){const search=document.getElementById("compSearch");if(search){search.value=fav.dataset.compFavModel;renderCompressorResults()}return}
+    const button=event.target.closest("[data-comp-action]");if(!button)return;
+    const entry=actionRegistry.get(button.dataset.compId);if(!entry)return;
+    if(button.dataset.compAction==="copy")return copyCompressorSpec(entry.specId);
+    if(button.dataset.compAction==="delete")return deleteCustomCompressor(entry.item._id);
+    if(button.dataset.compAction==="favorite")return toggleFavorite(entry.item.brand,entry.item.rec.model,JSON.stringify(entry.item.rec));
   }
 
   window.renderCompressorResults = function () {
@@ -228,10 +303,13 @@
     const brand = brandEl ? brandEl.value : "";
     const host = document.getElementById("compResults");
     const countEl = document.getElementById("compResultCount");
+    if(host)host.setAttribute("aria-busy","true");
+    actionRegistry.clear();
     renderFavoritesBar();
     if (!q && !brand) {
-      host.innerHTML = `<p class="hint">اكتب كود الكباس (أو جزء منه)، أو أي قيمة تانية زي نوع الفريون (مثال: R600a) — أو اختر ماركة من القايمة، والنتائج هتظهر هنا. القاعدة فيها أكتر من ${flatRecords().length.toLocaleString("ar-EG")} موديل عبر ${allBrands().length} ماركة.</p>`;
+      host.innerHTML = `<p class="hint">اكتب كود الكباس (أو جزء منه)، أو أي قيمة تانية زي نوع الفريون (مثال: R600a) — أو اختر ماركة من القايمة، والنتائج هتظهر هنا. القاعدة فيها أكتر من ${totalRecords().toLocaleString("ar-EG")} موديل عبر ${allBrands().length} ماركة.</p>`;
       countEl.textContent = "";
+      if(host)host.setAttribute("aria-busy","false");
       return;
     }
     const results = searchCompressors(q, brand);
@@ -240,9 +318,11 @@
       : `عدد النتائج: ${results.length}`;
     if (!results.length) {
       host.innerHTML = `<p class="hint">مفيش نتائج مطابقة. لو الموديل ده مش موجود فعلاً في الملف المرجعي، تقدر تضيفه يدويًا بالزرار فوق وهيتحفظ عندك وهيظهر في البحث بعد كده.</p>`;
+      host.setAttribute("aria-busy","false");
       return;
     }
     host.innerHTML = results.slice(0, MAX_RESULTS).map(resultCardHtml).join("");
+    host.setAttribute("aria-busy","false");
   };
 
   window.fillCompressorBrandFilter = function () {
@@ -257,6 +337,10 @@
     const model = document.getElementById("ccModel").value.trim();
     if (!model) { alert("لازم تكتب كود الموديل"); return; }
     const brand = document.getElementById("ccBrand").value.trim() || "إضافات يدوية";
+    const key=compressorKey(brand,model);
+    const duplicateBase=Object.entries(db()).some(([b,rows])=>rows.some(r=>compressorKey(b,r.model)===key));
+    const duplicateCustom=customEntries().some(c=>compressorKey(c.brand,c.rec?.model)===key);
+    if(duplicateBase||duplicateCustom){alert(`⚠️ الكود «${model}» موجود بالفعل تحت ماركة «${brand}»، ولن تتم إضافته مرة أخرى.`);return}
     const rec = { model };
     const hpRaw = document.getElementById("ccHp").value.trim();
     if (hpRaw) rec.hp = hpRaw;
@@ -267,8 +351,9 @@
     });
     const list = customEntries();
     list.push({ id: id_(), brand, rec, addedAt: new Date().toISOString() });
-    putLS(LS_CUSTOM, list);
+    if(!putLS(LS_CUSTOM, list))return;
     recordsCache = null;
+    searchCache.clear();
     ["ccModel", "ccBrand", "ccHp", "ccAmp", "ccBtu", "ccFreon", "ccApp", "ccRunCap", "ccStartCap", "ccOil", "ccNote"].forEach(x => { const e = document.getElementById(x); if (e) e.value = ""; });
     toggle("compAddBox");
     document.getElementById("compSearch").value = model;
@@ -276,7 +361,19 @@
   };
 
   window.initCompressorCodesPage = function () {
-    fillCompressorBrandFilter();
-    renderCompressorResults();
+    const search=document.getElementById("compSearch"),brand=document.getElementById("compBrandFilter");
+    const loadAndRender=()=>{const q=search?.value.trim(),b=brand?.value;return (b&&!q?loadCompressorBrand(b):loadAllCompressorBrands()).then(()=>renderCompressorResults())};
+    search?.addEventListener("input",loadAndRender);
+    brand?.addEventListener("change",loadAndRender);
+    document.getElementById("compAddToggle")?.addEventListener("click",()=>toggle("compAddBox"));
+    document.getElementById("compCancelAdd")?.addEventListener("click",()=>toggle("compAddBox"));
+    document.getElementById("compSaveCustom")?.addEventListener("click",()=>loadAllCompressorBrands().then(saveCustomCompressor));
+    document.getElementById("compDuplicatesToggle")?.addEventListener("click",()=>{const panel=document.getElementById("compDuplicatesPanel");if(!panel)return;panel.classList.toggle("hidden");if(!panel.classList.contains("hidden"))loadAllCompressorBrands().then(renderDuplicateReview)});
+    document.getElementById("compMergeCustom")?.addEventListener("click",()=>loadAllCompressorBrands().then(mergeCompatibleCustom));
+    document.getElementById("compExportDuplicatePlan")?.addEventListener("click",()=>loadAllCompressorBrands().then(downloadDuplicatePlan));
+    document.getElementById("compResults")?.addEventListener("click",handleCompressorAction);
+    document.getElementById("compFavorites")?.addEventListener("click",handleCompressorAction);
+    const host=document.getElementById("compResults");if(host)host.setAttribute("aria-busy","true");
+    loadCompressorDb().then(()=>{fillCompressorBrandFilter();renderCompressorResults()}).catch(e=>{if(host){host.innerHTML=`<p class="hint" role="alert">⚠️ ${esc(e.message)}</p>`;host.setAttribute("aria-busy","false")}});
   };
 })(window);

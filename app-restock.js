@@ -80,12 +80,12 @@ function saveQuickAddPart() {
   const p = { id: id(), name, category, code, location: "", qty, min: 0, buy, use, photo: "", createdAt: new Date().toISOString() };
   const all = arr(K.p);
   all.push(p);
-  if (!saveJSONSafe(K.p, all)) return;
-  if (qty > 0) {
-    const moves = arr(K.m);
-    moves.push({ id: id(), partId: p.id, type: "توريد", note: "إضافة صنف جديد", qty, at: new Date().toISOString() });
-    put(K.m, moves);
-  }
+  const result=withRollback([K.p,K.m],()=>{
+    if(!put(K.p,all))return{ok:false};
+    if(qty>0){const moves=arr(K.m);moves.push({id:id(),partId:p.id,type:"توريد",note:"إضافة صنف جديد",qty,at:new Date().toISOString()});if(!put(K.m,moves))return{ok:false}}
+    return{ok:true};
+  });
+  if(!result?.ok)return;
   closeQuickAddPart();
   refreshAllScreens?.();
   renderParts?.();
@@ -175,10 +175,13 @@ function saveRestock() {
     const nb = +buyEl.value;
     if (Number.isFinite(nb) && nb >= 0) p.buy = nb;
   }
-  if (!saveJSONSafe(K.p, all)) return;
-  const moves = arr(K.m);
-  moves.push({ id: id(), partId: pid, type: "توريد", note, qty, at: new Date().toISOString() });
-  put(K.m, moves);
+  const result=withRollback([K.p,K.m],()=>{
+    if(!put(K.p,all))return{ok:false};
+    const moves=arr(K.m);moves.push({id:id(),partId:pid,type:"توريد",note,qty,at:new Date().toISOString()});
+    if(!put(K.m,moves))return{ok:false};
+    return{ok:true};
+  });
+  if(!result?.ok)return;
   refreshAllScreens?.();
   renderParts?.();
   alert(`✅ تم تسجيل توريد ${qty} من «${p.name}». الكمية الحالية الآن: ${p.qty}.`);

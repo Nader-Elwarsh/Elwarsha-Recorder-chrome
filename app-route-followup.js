@@ -7,18 +7,18 @@ function refreshRouteViews(){
   if(typeof renderRoute==="function")renderRoute();
   if(typeof renderRequests==="function")renderRequests();
 }
-function toggleVisited(i){let a=arr(K.r),r=a.find(x=>x.id===i);if(!r)return;let today=dayKeyLocal(new Date());if(r.visitedAt&&dayKeyLocal(r.visitedAt)===today)r.visitedAt=null;else r.visitedAt=new Date().toISOString();put(K.r,a);refreshRouteViews()}
+function toggleVisited(i){let a=arr(K.r),r=a.find(x=>x.id===i);if(!r)return;let today=dayKeyLocal(new Date());if(r.visitedAt&&dayKeyLocal(r.visitedAt)===today)r.visitedAt=null;else r.visitedAt=new Date().toISOString();if(!saveJSONSafe(K.r,a))return;refreshRouteViews()}
 function setRouteContactStatus(i,status){
   const a=arr(K.r),r=a.find(x=>x.id===i);if(!r)return;
   r.contactStatus=status;
   r.contactStatusAt=new Date().toISOString();
-  put(K.r,a);
+  if(!saveJSONSafe(K.r,a))return;
   refreshRouteViews();
 }
 function clearRouteContactStatus(i){
   const a=arr(K.r),r=a.find(x=>x.id===i);if(!r)return;
   delete r.contactStatus;delete r.contactStatusAt;
-  put(K.r,a);
+  if(!saveJSONSafe(K.r,a))return;
   refreshRouteViews();
 }
 function retryRouteContact(i){clearRouteContactStatus(i);}
@@ -46,7 +46,7 @@ function saveRouteOrder(ids){
   const s=settings(), old=Array.isArray(s.routeOrder)?s.routeOrder:[];
   const keep=old.filter(id=>!ids.includes(id));
   s.routeOrder=keep.concat(ids);
-  put(K.s,s);
+  if(!saveJSONSafe(K.s,s))return;
 }
 function moveRouteItem(id,delta){
   // بيدور على بطاقات خط السير في أي مكان في الصفحة الحالية (routeList في
@@ -293,7 +293,7 @@ function routeSaveDraftLabor(i){
   const a=arr(K.r),r=a.find(x=>x.id===i);
   if(!r)return;
   const labor=+(document.getElementById(`qcLabor-${i}`)?.value);
-  if(Number.isFinite(labor)&&labor>=0){r.labor=labor;r.total=(+r.partsTotal||0)+labor;r.remain=Math.max(0,r.total-(+r.deposit||0));put(K.r,a);}
+  if(Number.isFinite(labor)&&labor>=0){r.labor=labor;r.total=(+r.partsTotal||0)+labor;r.remain=Math.max(0,r.total-(+r.deposit||0));if(!saveJSONSafe(K.r,a))return;}
 }
 function routeConfirmAddPart(requestId){
   routeSaveDraftLabor(requestId);
@@ -322,7 +322,7 @@ function confirmQuickPartialPayment(i){
   r.deposit=(+r.deposit||0)+newDeposit;
   if(wallet)r.depositWallet=wallet;
   r.remain=Math.max(0,r.total-r.deposit);
-  put(K.r,a);
+  if(!saveJSONSafe(K.r,a))return;
   if(typeof syncWalletForOrderDeposit==="function")syncWalletForOrderDeposit(r);
   routeViewState.quickCloseId=null;
   routeViewState.quickCloseDraft=null;
@@ -347,7 +347,7 @@ function confirmQuickClose(i){
   const now=new Date().toISOString();
   const collected=Math.max(0,(+r.total||0)-(+r.deposit||0));
   r.paid=true;r.remain=0;r.paidAt=now;r.closed=true;r.closedAt=now;r.closeWallet=wallet;
-  put(K.r,a);
+  if(!saveJSONSafe(K.r,a))return;
   if(typeof syncTreasuryForOrderClose==="function")syncTreasuryForOrderClose(r,collected);
   if(typeof syncWalletForOrderClose==="function")syncWalletForOrderClose(r,collected,wallet);
   routeViewState.quickCloseId=null;

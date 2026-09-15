@@ -575,3 +575,26 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .comp-fields{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.comp-field{background:var(--bg-sunken);border-radius:8px;padding:5px 9px;font-size:12.5px}.comp-field b{font-weight:bold}.comp-actions{grid-template-columns:1fr 1fr}.comp-fav-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
 .comp-primary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:8px 0}.comp-kv{background:var(--bg-sunken);border-radius:9px;padding:8px}.comp-kv small{display:block;color:var(--text-muted);font-size:11px;margin-bottom:3px}.comp-kv b{font-size:14px}.comp-extra{margin-top:8px;background:var(--bg-sunken);border-radius:9px;padding:8px}.comp-extra summary{cursor:pointer;font-size:12.5px;color:var(--text-muted)}.comp-extra .comp-fields{margin-top:6px}
 @media(max-width:650px){.comp-primary-grid{grid-template-columns:1fr 1fr}}
+
+/* v11-91 UI/UX: visible keyboard focus, touch targets, and narrow-screen layout */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible{outline:3px solid #f0a202;outline-offset:2px}
+button,.small-btn,.mini-action{min-height:38px}
+input,select,textarea{min-height:40px;box-sizing:border-box}
+[aria-busy="true"]{cursor:progress}
+@media(max-width:650px){
+  .page{padding-left:12px;padding-right:12px}
+  .page-head{gap:8px;align-items:flex-start;flex-wrap:wrap}
+  .page-head h1{font-size:1.25rem;line-height:1.35}
+  .filters{gap:8px}
+  .filters input,.filters select,.form-grid input,.form-grid select,.form-grid textarea{width:100%;min-width:0}
+  .comp-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .comp-actions button{width:100%;white-space:normal;line-height:1.25}
+  .comp-fav-chips{display:flex;gap:7px;overflow-x:auto;padding-bottom:5px;scroll-snap-type:x proximity}
+  .comp-fav-chips button{flex:0 0 auto;scroll-snap-align:start}
+  .quick-add{padding:12px}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}}
+
+/* Duplicate review panel: readable comparison without destructive actions */
+.comp-duplicate-group{margin:8px 0;background:var(--bg-sunken);border:1px solid var(--border);border-radius:9px;padding:8px}.comp-duplicate-group summary{cursor:pointer;font-size:13px}.comp-duplicate-rows{display:grid;gap:7px;margin-top:8px}.comp-duplicate-rows .item{margin:0}.comp-duplicate-rows small{display:block;word-break:break-word;color:var(--text-muted);margin-top:5px}
+@media(max-width:650px){.comp-duplicate-group{padding:7px}.comp-duplicate-group summary{font-size:12px}.comp-duplicate-rows small{font-size:11px}}

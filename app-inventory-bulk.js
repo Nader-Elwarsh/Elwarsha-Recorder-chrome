@@ -44,7 +44,8 @@ function applyBulkPriceChange(){
       });
     });
   }
-  put(K.p,all);
+  const saved=withRollback([K.p],()=>put(K.p,all)?{ok:true}:{ok:false});
+  if(!saved?.ok)return;
   renderParts?.();
   refreshAllScreens?.();
   alert(`✅ تم تعديل ${targets.length} صنف بنجاح.`);

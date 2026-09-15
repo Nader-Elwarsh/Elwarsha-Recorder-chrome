@@ -2,7 +2,8 @@
   "name": "workshop-fanya-pwa",
   "private": true,
   "scripts": {
-    "test": "node tests/core-tests.js && node tests/migration-tests.js",
-    "check": "node tests/syntax-check.js && npm test"
+    "test": "node tests/core-tests.js && node tests/migration-tests.js && node tests/stock-transaction-tests.js && node tests/critical-path-smoke.js && node tests/project-quality-check.js && node tests/ui-quality-check.js",
+    "check": "node tests/syntax-check.js && npm test",
+    "browser-test": "bash tests/browser-smoke.sh"
   }
 }
